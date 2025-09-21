@@ -6,6 +6,7 @@ Data:
   batch_size: 128
   model: gat
   patience: 8
+  loader: default
   checkpoint_path: None
 
 Tune:
