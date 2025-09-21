@@ -1,0 +1,7 @@
+captum==0.8.0
+joblib==1.5.2
+optuna==4.5.0
+pandas==2.3.2
+rdkit==2025.3.6
+scikit-learn==1.7.2
+torch-geometric==2.6.1
