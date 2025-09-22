@@ -1,5 +1,5 @@
 from placeholder.source.datasets.default import MolecularDataset
-from placeholder.source.datasets.brics_graph import MolecularBRICSDataset
+from placeholder.source.datasets.decompose import DecomposeDataset
 
 __all__ = ["MolecularDataset",
-           "MolecularBRICSDataset"]
+           "DecomposeDataset"]

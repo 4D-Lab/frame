@@ -1,15 +1,17 @@
 import os
 import copy
+import uuid
 import shutil
 import argparse
 from pathlib import Path
 
 import yaml
 import torch
+import joblib
 from tqdm import tqdm
 from torch_geometric.loader import DataLoader
 
-from placeholder.source import datasets, models, train
+from placeholder.source import models, train
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -87,18 +89,23 @@ def main():
         params = yaml.safe_load(stream)
 
     # * Initialize
-    cwd = Path(os.getcwd())
     name = params["Data"]["name"]
-    file_path = params["Data"]["file_path"]
+    if name.lower() == "none":
+        name = str(uuid.uuid4()).split["-"][0]
+        params["Data"]["name"] = name
+
+    cwd = Path(os.getcwd())
     project_dir = cwd / "output" / name
     os.makedirs(project_dir, exist_ok=True)
 
-    # * Create dataset
-    dataset = datasets.MolecularDataset(file_path)
-    bce_weight = (len(dataset.y) - sum(dataset.y)) / sum(dataset.y)
-    params["Data"]["feat_size"] = dataset.num_node_features
-    params["Data"]["edge_dim"] = dataset.num_edge_features
-    params["Data"]["bce_weight"] = bce_weight
+    # * Load dataset
+    path_csv = Path(params["Data"]["path_joblib"])
+    data = joblib.load(path_csv)
+
+    dataset = data["dataset"]
+    params["Data"]["feat_size"] = data["metadata"]["feat_size"]
+    params["Data"]["edge_dim"] = data["metadata"]["edge_dim"]
+    params["Data"]["bce_weight"] = data["metadata"]["bce_weight"]
     params["Data"]["project_dir"] = project_dir
 
     if os.path.isdir(cwd / "???"):

@@ -9,13 +9,15 @@ def model_setup(model_name, config):
     bce_weight = config["bce_weight"]
 
     if model_name == "attentive":
-        model = pyg_models.GNN_GCN(config).to(device)
+        model = pyg_models.GNN_AttentiveFP(config).to(device)
     elif model_name == "gat":
         model = pyg_models.GNN_GAT(config).to(device)
     elif model_name == "sage":
         model = pyg_models.GNN_SAGE(config).to(device)
     elif model_name == "gin":
         model = pyg_models.GNN_GIN(config).to(device)
+    elif model_name == "gcn":
+        model = pyg_models.GNN_GCN(config).to(device)
     else:
         raise NotImplementedError("Model not available")
 

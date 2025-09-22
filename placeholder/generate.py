@@ -1,11 +1,12 @@
 import os
+import uuid
 import shutil
-import joblib
 import argparse
 from pathlib import Path
 
 import yaml
 import torch
+import joblib
 
 from placeholder.source import datasets
 
@@ -21,8 +22,11 @@ def main():
 
     # Get params
     name = params["Data"].get("name", None)
-    file_path = params["Data"].get("file_path", None)
+    path_csv = params["Data"].get("path_csv", None)
     loader = params["Data"].get("loader", "default").lower()
+
+    if name.lower() == "none":
+        name = str(uuid.uuid4()).split["-"][0]
 
     # * Initialize
     cwd = Path(os.getcwd())
@@ -31,9 +35,9 @@ def main():
 
     # * Create dataset
     if loader == "default":
-        dataset = datasets.MolecularDataset(file_path)
-    elif loader == "brics":
-        dataset = datasets.MolecularBRICSDataset(file_path)
+        dataset = datasets.MolecularDataset(path_csv)
+    elif loader == "decompose":
+        dataset = datasets.DecomposeDataset(path_csv)
     else:
         raise NotImplementedError("Loader not available")
 
