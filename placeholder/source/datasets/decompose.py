@@ -91,7 +91,7 @@ class DecomposeDataset(InMemoryDataset):
                 data = Data(x=x, edge_index=edge_index,
                             edge_attr=edge_attr, y=y,
                             idx=mol_idx, set=mol_set,
-                            smiles=mol_smiles)
+                            frag=frags, smiles=mol_smiles)
 
                 data_list.append(data)
 
