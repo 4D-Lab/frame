@@ -105,7 +105,7 @@ class GNN_AttentiveFP(torch.nn.Module):
         num_layers = config.get("num_layers", 2)
         dropout = config.get("dropout_rate", 0.4)
         edge_dim = config.get("edge_dim", None)
-        num_timesteps = config.get("num_timesteps", 1)
+        num_timesteps = config.get("num_timesteps", 2)
 
         self.model = AttentiveFP(in_channels=in_channels,
                                  hidden_channels=hidden_channels,
