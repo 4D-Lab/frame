@@ -29,7 +29,7 @@ def main():
         else:
             tune[name] = float(bounds["value"])
 
-    checkpoint_path = config["checkpoint_path"]
+    path_checkpoint = config["path_checkpoint"]
     method = config.get("method", "ig").lower()
     model_name = config.get("model", "gat").lower()
 
@@ -54,7 +54,7 @@ def main():
 
     # * Get checkpoint and prepare Explainer
     model = models.select_model(model_name, tune)
-    model.load_state_dict(torch.load(checkpoint_path))
+    model.load_state_dict(torch.load(path_checkpoint))
     model.eval()
 
     mode = "multiclass_classification"

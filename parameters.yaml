@@ -1,13 +1,17 @@
 Data:
-  name: test
-  file_path: "path/to/csv_file.csv"
+  name: None
+  path_csv: "path/to/csv_file.csv"
+  path_joblib: "path/to/joblib_file.joblib"
+  path_checkpoint: "path/to/checkpoint.pt"
   trials: 2
-  epochs: 2
+  epochs: 10
+  loader: default  # "default" or "decompose"
   batch_size: 128
   model: gat
-  patience: 8
-  loader: default
-  checkpoint_path: None
+  patience: 5
+  method: ig  # "ig" or "shapley"
+  workers: 4
+  max_retries: 5
 
 Tune:
   hidden_channels:
