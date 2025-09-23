@@ -28,3 +28,4 @@ dependencies = {file = ["requirements.txt"]}
 placeholder_tune = "placeholder.tune:main"
 placeholder_train = "placeholder.train:main"
 placeholder_gen = "placeholder.generate:main"
+placeholder_explain = "placeholder.explain:main"

@@ -73,12 +73,14 @@ class DecomposeDataset(InMemoryDataset):
             mol_idx = line[col_id]
 
             # Create graph object
-            frags, frag_map = _get_map(mol_smiles)
+            frags, frag_map, atom_map = _get_map(mol_smiles)
             if frags is not None:
                 xs = []
                 for frag in frags:
                     xs.append(_gen_features(frag))
                 x = torch.stack(xs, dim=0)
+
+                mapping = [list(atom_map.keys()), list(atom_map.values())]
 
                 edges = []
                 for u, v in frag_map:
@@ -91,7 +93,8 @@ class DecomposeDataset(InMemoryDataset):
                 data = Data(x=x, edge_index=edge_index,
                             edge_attr=edge_attr, y=y,
                             idx=mol_idx, set=mol_set,
-                            frag=frags, smiles=mol_smiles)
+                            frag=frags, atom_map=mapping,
+                            smiles=mol_smiles)
 
                 data_list.append(data)
 
@@ -118,7 +121,7 @@ def _get_map(smiles: str):
     connections = [bond[0] for bond in brics_bonds]
 
     if len(brics_bonds) == 0:
-        return None, None
+        return None, None, None
 
     # Get the bond object (BRICS) between the two atoms
     bond_idx = []
@@ -149,7 +152,7 @@ def _get_map(smiles: str):
         frag_1 = atom_map[conn[1]]
         frag_map.append((frag_0, frag_1))
 
-    return fragments, frag_map
+    return fragments, frag_map, atom_map
 
 
 def _gen_features(smiles):
