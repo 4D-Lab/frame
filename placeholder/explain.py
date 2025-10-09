@@ -2,6 +2,7 @@ import os
 import uuid
 import argparse
 from pathlib import Path
+from collections import defaultdict
 
 import yaml
 import torch
@@ -82,6 +83,8 @@ def main():
     else:
         raise NotImplementedError("Method not availabe")
 
+    top_k = defaultdict(float)
+    bot_k = defaultdict(float)
     for data in tqdm(dataset, ncols=120, desc="Explaining"):
         data.to(device)
         batch = torch.zeros(data.x.shape[0], dtype=int, device=device)
@@ -100,6 +103,16 @@ def main():
         explanation = explainer(data.x.float(), data.edge_index,
                                 edge_attr=data.edge_attr.float(),
                                 batch=batch)
+        node_mask = explanation.node_mask
 
-        explain.plot_importance(data, explanation, project_dir, 10)
-        explain.plot_explain(data, explanation, pred, image_dir, True)
+        top, bot = explain.retrieve_info(node_mask, 10)
+        for label, contrib in zip(top[0], top[1]):
+            top_k[label] += abs(contrib)
+        for label, contrib in zip(bot[0], bot[1]):
+            bot_k[label] += abs(contrib)
+
+        explain.plot_fragments(data, node_mask, image_dir, 10)
+        explain.plot_importance(data, node_mask, image_dir, 10)
+        explain.plot_explain(data, node_mask, pred, image_dir)
+
+    explain.plot_general(top_k, bot_k, image_dir)
