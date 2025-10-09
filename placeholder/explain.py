@@ -101,4 +101,5 @@ def main():
                                 edge_attr=data.edge_attr.float(),
                                 batch=batch)
 
+        explain.plot_importance(data, explanation, project_dir, 10)
         explain.plot_explain(data, explanation, pred, image_dir, True)

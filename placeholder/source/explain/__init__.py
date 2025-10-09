@@ -1,10 +1,54 @@
+import os
+
 import torch
+import numpy as np
 from rdkit import Chem
 import matplotlib as mpl
+import matplotlib.pyplot as plt
 from rdkit.Chem.Draw import rdMolDraw2D
 
 mpl.use("Agg")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+
+LABELS = ["WienerIndex", "RandicIndex", "MolWt", "NumAtoms",
+          "NumBonds", "NumHeavyAtoms", "NumHeteroatoms", "NumHDonors",
+          "NumHAcceptors", "NumRotatableBonds", "NumAromaticRings",
+          "NumAliphaticRings", "NumAmideBonds", "NumAtomStereoCenters",
+          "NHOHCount", "NOCount", "FractionCSP3", "BalabanJ", "BertzCT",
+          "Kappa1", "Kappa2", "Kappa3", "TPSA", "LabuteASA", "RadiusGyration",
+          "GeneralCharge", "Charge_mean", "Charge_std", "Charge_min",
+          "Charge_max", "Dipole_Debye", "DipoleVec_X", "DipoleVec_Y",
+          "DipoleVec_Z"]
+
+
+def plot_importance(data, explanation, cwd, k=10):
+    labels = np.array(LABELS)
+    node_mask = explanation.node_mask
+
+    mask_node = torch.sum(node_mask, dim=0).tolist()
+    mask_node = np.array([round(x, 3) for x in mask_node])
+
+    top_idx = np.argsort(mask_node)[-k:][::-1]
+    top_mask = mask_node[top_idx]
+    top_labels = labels[top_idx]
+
+    plt.barh(top_labels, top_mask)
+    plt.xlim(0, top_mask.max() * 1.1)
+    for i, v in enumerate(top_mask):
+        plt.text(v + 0.01, i, str(v), va="center")
+
+    plt.title(f"Top {k} features - {data.idx}")
+    plt.xlabel("Importance")
+    plt.gca().invert_yaxis()
+    plt.tight_layout()
+
+    # * Save image
+    out_path = cwd / "explain"
+    os.makedirs(out_path, exist_ok=True)
+
+    file = out_path / f"{data.idx}.png"
+    plt.savefig(file, format="png", dpi=200)
+    plt.close("all")
 
 
 def plot_explain(data, explanation, pred, out, note=True):
