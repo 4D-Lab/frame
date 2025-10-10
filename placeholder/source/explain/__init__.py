@@ -35,7 +35,8 @@ V1 = (ATOM + DEGREE + ["charge"] + ["radical"]
       + ["chirality"] + C_TYPE)
 
 
-def retrieve_info(node_mask, k=10):
+def retrieve_info(data, node_mask, k=10):
+    fragments = np.array(data.frag)
     labels = np.array(V1)
     cut = int(k/2)
 
@@ -49,6 +50,17 @@ def retrieve_info(node_mask, k=10):
     bot_idx = np.argsort(mask_node)[:cut][::-1]
     bot_mask = mask_node[bot_idx]
     bot_labels = labels[bot_idx]
+
+    # Fragments
+    contrib = torch.sum(node_mask, dim=1).tolist()
+    contrib.sort()
+    positive = np.array([v for v in contrib if v > 0])
+    pos_idx = np.argsort(positive)[-cut:][::-1]
+    top_frags = positive[pos_idx]
+    # TODO Fazer lista com fragmentos
+    negative = np.array([v for v in contrib if v > 0])
+    neg_idx = np.argsort(negative)[:cut][::-1]
+    bot_frags = negative[neg_idx]
 
     return (top_labels, top_mask), (bot_labels, bot_mask)
 
@@ -128,16 +140,23 @@ def plot_explain(data, node_mask, pred, out):
     mask_node = torch.sum(node_mask, dim=1).tolist()
     mask_node = [round(x, 3) for x in mask_node]
 
-    middle = 0
+    # * Prepare colors
     min_val = min(mask_node)
     max_val = max(mask_node)
-    if (max_val < 0) or (min_val > 0):
-        middle = (max_val + min_val) / 2
+
+    if min_val > 0:
+        norm = mpl.colors.Normalize(vmin=0, vmax=max_val)
+        cmap = mpl.cm.ScalarMappable(norm=norm, cmap=mpl.cm.Blues)
+
+    elif max_val < 0:
+        norm = mpl.colors.Normalize(vmin=min_val, vmax=0)
+        cmap = mpl.cm.ScalarMappable(norm=norm, cmap=mpl.cm.Reds)
+
+    else:
+        norm = mpl.colors.TwoSlopeNorm(vmin=min_val, vcenter=0, vmax=max_val)
+        cmap = mpl.cm.ScalarMappable(norm=norm, cmap=mpl.cm.RdBu)
 
     # Annotate values and set highlight color
-    norm = mpl.colors.TwoSlopeNorm(vmin=min_val, vcenter=middle, vmax=max_val)
-    cmap = mpl.cm.ScalarMappable(norm=norm, cmap=mpl.cm.RdBu)
-
     for atom in mol.GetAtoms():
         atom_idx = atom.GetIdx()
         frag_idx = atom_map[atom_idx]
