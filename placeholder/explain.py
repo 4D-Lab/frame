@@ -2,7 +2,7 @@ import os
 import uuid
 import argparse
 from pathlib import Path
-from collections import defaultdict
+from collections import Counter
 
 import yaml
 import torch
@@ -83,10 +83,12 @@ def main():
     else:
         raise NotImplementedError("Method not availabe")
 
-    top_k = defaultdict(float)
-    bot_k = defaultdict(float)
-    frag_top = defaultdict(float)
-    frag_bot = defaultdict(float)
+    # Create counters
+    top_correct, bot_correct = Counter(), Counter()
+    top_wrong, bot_wrong = Counter(), Counter()
+    correct = (top_correct, bot_correct)
+    wrong = (top_wrong, bot_wrong)
+
     for data in tqdm(dataset, ncols=120, desc="Explaining"):
         data.to(device)
         batch = torch.zeros(data.x.shape[0], dtype=int, device=device)
@@ -105,22 +107,9 @@ def main():
         explanation = explainer(data.x.float(), data.edge_index,
                                 edge_attr=data.edge_attr.float(),
                                 batch=batch)
-        node_mask = explanation.node_mask
+        node_mask = explanation.node_mask.detach().cpu()
 
-        top, bot = explain.retrieve_info(data, node_mask, 10)
-        for label, contrib in zip(top[0], top[1]):
-            top_k[label] += abs(contrib)
-        for label, contrib in zip(bot[0], bot[1]):
-            bot_k[label] += abs(contrib)
+        explain.retrieve_info(data, node_mask, pred, correct, wrong)
+        explain.plot_explanations(data, node_mask, pred, image_dir)
 
-        for label in top[3]:
-            frag_top[label] += 1
-        for label in bot[3]:
-            frag_bot[label] += 1
-
-        explain.plot_fragments(data, node_mask, image_dir, 10)
-        explain.plot_importance(data, node_mask, image_dir, 10)
-        explain.plot_explain(data, node_mask, pred, image_dir)
-
-    # explain.plot_general(top_k, bot_k, image_dir)
-    explain.plot_general(frag_top, frag_bot, image_dir)
+    explain.plot_counters(correct, wrong, image_dir)
