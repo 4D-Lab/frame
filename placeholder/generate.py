@@ -26,7 +26,7 @@ def main():
     loader = params["Data"].get("loader", "default").lower()
 
     if name.lower() == "none":
-        name = str(uuid.uuid4()).split["-"][0]
+        name = str(uuid.uuid4()).split("-")[0]
 
     # * Initialize
     cwd = Path(os.getcwd())
@@ -38,6 +38,8 @@ def main():
         dataset = datasets.MolecularDataset(path_csv)
     elif loader == "decompose":
         dataset = datasets.DecomposeDataset(path_csv)
+    elif loader == "decompose_v2":
+        dataset = datasets.DecomposeDataset_v2(path_csv)
     else:
         raise NotImplementedError("Loader not available")
 
@@ -46,6 +48,7 @@ def main():
     metadata = {"feat_size": dataset.num_node_features,
                 "edge_dim": dataset.num_edge_features,
                 "bce_weight": bce_weight,
+                "loader": loader,
                 "project_dir": project_dir}
 
     dump_data = {"dataset": dataset, "metadata": metadata}
