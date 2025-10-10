@@ -46,12 +46,13 @@ def main():
     os.makedirs(image_dir, exist_ok=True)
 
     # * Load dataset
-    path_csv = Path(config["path_joblib"])
-    data = joblib.load(path_csv)
+    path_joblib = Path(config["path_joblib"])
+    data = joblib.load(path_joblib)
     dataset = data["dataset"]
     tune["feat_size"] = data["metadata"]["feat_size"]
     tune["edge_dim"] = data["metadata"]["edge_dim"]
     tune["bce_weight"] = data["metadata"]["bce_weight"]
+    loader = data["metadata"]["loader"]
 
     # * Get checkpoint and prepare Explainer
     model = models.select_model(model_name, tune)
@@ -84,10 +85,14 @@ def main():
         raise NotImplementedError("Method not availabe")
 
     # Create counters
-    top_correct, bot_correct = Counter(), Counter()
-    top_wrong, bot_wrong = Counter(), Counter()
-    correct = (top_correct, bot_correct)
-    wrong = (top_wrong, bot_wrong)
+    top_frag_correct, bot_frag_correct = Counter(), Counter()
+    top_frag_wrong, bot_frag_wrong = Counter(), Counter()
+    fragments = (top_frag_correct, bot_frag_correct,
+                 top_frag_wrong, bot_frag_wrong)
+    top_lbl_correct, bot_lbl_correct = Counter(), Counter()
+    top_lbl_wrong, bot_lbl_wrong = Counter(), Counter()
+    label = (top_lbl_correct, bot_lbl_correct,
+             top_lbl_wrong, bot_lbl_wrong)
 
     for data in tqdm(dataset, ncols=120, desc="Explaining"):
         data.to(device)
@@ -109,7 +114,8 @@ def main():
                                 batch=batch)
         node_mask = explanation.node_mask.detach().cpu()
 
-        explain.retrieve_info(data, node_mask, pred, correct, wrong)
-        explain.plot_explanations(data, node_mask, pred, image_dir)
+        explain.retrieve_info(data, node_mask, pred, loader, fragments, label)
+        explain.plot_explanations(data, node_mask, pred, image_dir, loader)
 
-    explain.plot_counters(correct, wrong, image_dir)
+    explain.plot_counters(fragments, image_dir, "frag")
+    explain.plot_counters(label, image_dir, "label")

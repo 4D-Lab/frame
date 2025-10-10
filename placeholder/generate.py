@@ -48,6 +48,7 @@ def main():
     metadata = {"feat_size": dataset.num_node_features,
                 "edge_dim": dataset.num_edge_features,
                 "bce_weight": bce_weight,
+                "loader": loader,
                 "project_dir": project_dir}
 
     dump_data = {"dataset": dataset, "metadata": metadata}

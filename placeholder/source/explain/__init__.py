@@ -1,12 +1,12 @@
-from io import BytesIO
-
 import torch
 import numpy as np
 from rdkit import Chem
 import matplotlib as mpl
+from lxml import etree
 import matplotlib.pyplot as plt
+import svgutils.transform as sg
+from rdkit.Chem.Draw import rdMolDraw2D
 from matplotlib.colors import Normalize, TwoSlopeNorm
-from rdkit.Chem.Draw import rdMolDraw2D, MolDraw2DCairo
 
 mpl.use("Agg")
 device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -32,11 +32,15 @@ V2 = ["WienerIndex", "RandicIndex", "MolWt", "NumAtoms",
       "DipoleVec_Z"]
 
 
-def plot_explanations(data, node_mask, pred, out, k=10):
-    labels = np.array(V1)
+def plot_explanations(data, node_mask, pred, out, loader, k=10):
     smiles = data.smiles
     fragments = data.frag
     mol = Chem.MolFromSmiles(smiles)
+
+    if (loader == "default") or (loader == "decompose"):
+        labels = np.array(V1)
+    elif loader == "decompose_v2":
+        labels = np.array(V2)
 
     # * Feature-level bar plot
     mask_feat = torch.sum(node_mask, dim=0).numpy()
@@ -104,35 +108,41 @@ def plot_explanations(data, node_mask, pred, out, k=10):
 
     # * Fragment-level visualization
     mask_frag = node_mask.numpy().tolist()
-    frag_texts, frag_imgs = [], []
+    frag_imgs = []
 
     for i, frag in enumerate(fragments):
         top, bot = _get_cut(mask_frag[i], labels, k)
         (top_lbl, top_val), (bot_lbl, bot_val) = top, bot
 
+        contrib = np.sum(mask_frag[i]).round(3)
         entries = [f"{lbl}: {val}" for lbl, val in
                    zip(np.append(top_lbl, bot_lbl),
                        np.append(top_val, bot_val))]
-        text = [", ".join(entries[e:e + 3]) for e in range(0, len(entries), 3)]
-        frag_texts.append("\n".join(text))
-        frag_imgs.append(_subplot(frag, (350, 200)))
+        frag_imgs.append(_subplot(frag, entries, contrib))
 
-    n_axes = int(np.ceil(len(frag_imgs) / 3))
-    fig, axes = plt.subplots(n_axes, 3, figsize=(18, 10))
-    axes = axes.flatten()
+    # Create image
+    n_rows = int(np.ceil(len(frag_imgs) / 3))
+    width = 1600
+    height = 300 * n_rows
+    bg = f'<rect x="0" y="0" width="{width}" height="{height}" fill="white"/>'
+    background = etree.fromstring(bg)
 
-    for i, img_data in enumerate(frag_imgs):
-        if i < len(axes):
-            axes[i].imshow(plt.imread(BytesIO(img_data)))
-            axes[i].set_title(f"Frag {i} - {fragments[i]}", fontsize=10)
-            axes[i].set_xlabel(frag_texts[i], fontsize=9)
-        else:
-            axes[i].axis("off")
+    x = 50
+    y = 20
+    count = 0
+    for img in frag_imgs:
+        img.moveto(x, y)
+        x += 510
+        count += 1
 
-    plt.tight_layout()
-    out_feat = out / f"{data.idx}_frag.svg"
-    fig.savefig(out_feat, format="svg")
-    plt.close(fig)
+        if count == 3:
+            count = 0
+            x = 50
+            y += 300
+
+    fig = sg.SVGFigure(str(width), str(height))
+    fig.append([background] + frag_imgs)
+    fig.save(out / f"{data.idx}_frag.svg")
 
 
 def _get_cut(mask, labels, k=10):
@@ -150,64 +160,100 @@ def _get_cut(mask, labels, k=10):
     return top, bot
 
 
-def _subplot(frag, size=(300, 300)):
+def _subplot(frag, entries, contrib, size=(500, 250)):
     mol = Chem.MolFromSmiles(frag)
 
-    drawer = MolDraw2DCairo(size[0], size[1])
-    drawer.drawOptions().addAtomIndices = False
-    drawer.drawOptions().addStereoAnnotation = True
-    drawer.drawOptions().dummiesAreAttachments = False
-    drawer.drawOptions().padding = 0.0
-    drawer.DrawMolecule(mol)
+    pos_1 = ", ".join(entries[:3])
+    pos_2 = ", ".join(entries[3: 5])
+    neg_1 = ", ".join(entries[5: 8])
+    neg_2 = ", ".join(entries[8:])
+    legend = (f"{frag}\nTotal: {contrib}"
+              f"\n{pos_1}\n{pos_2}\n"
+              f"\n{neg_1}\n{neg_2}")
+
+    drawer = rdMolDraw2D.MolDraw2DSVG(size[0], size[1])
+    opts = drawer.drawOptions()
+    opts.addAtomIndices = False
+    opts.addStereoAnnotation = True
+    opts.dummiesAreAttachments = False
+    opts.padding = 0.0
+    opts.legendFraction = 0.5
+    opts.legendFontSize = 16
+    drawer.DrawMolecule(mol, legend=legend)
     drawer.FinishDrawing()
 
-    return drawer.GetDrawingText()
+    mol_svg = drawer.GetDrawingText()
+    mol_fig = sg.fromstring(mol_svg)
+    mol_plot = mol_fig.getroot()
+
+    return mol_plot
 
 
-def retrieve_info(data, node_mask, pred, correct, wrong, k=10):
+def retrieve_info(data, node_mask, pred, loader, count_frag, count_lbl, k=10):
     cut = k // 2
-    # labels = np.array(V1)
     pred_label = int(pred > 0.5)
     fragments = np.array(data.frag)
 
+    if (loader == "default") or (loader == "decompose"):
+        labels = np.array(V1)
+    elif loader == "decompose_v2":
+        labels = np.array(V2)
+
+    top_frag_c, bot_frag_c, top_frag_w, bot_frag_w = count_frag
+    top_lbl_c, bot_lbl_c, top_lbl_w, bot_lbl_w = count_lbl
+
     if pred_label == int(data.y):
-        top_counter, bot_counter = correct
+        top_counter_frag = top_frag_c
+        bot_counter_frag = bot_frag_c
+        top_counter_lbl = top_lbl_c
+        bot_counter_lbl = bot_lbl_c
     else:
-        top_counter, bot_counter = wrong
+        top_counter_frag = top_frag_w
+        bot_counter_frag = bot_frag_w
+        top_counter_lbl = top_lbl_w
+        bot_counter_lbl = bot_lbl_w
 
-    mask_frag = node_mask.sum(dim=1).cpu().numpy()
+    mask_frag = node_mask.sum(dim=1).numpy()
 
-    # top-k positives
+    # top-k positives - Fragments
     pos_idx = []
     pos_sel = np.where(mask_frag > 0)[0]
     if len(pos_sel) > 0:
         pos_sel = pos_sel[np.argsort(-mask_frag[pos_sel])]
         pos_idx = pos_sel[:cut]
+
         pos_frags = fragments[pos_idx]
         top_frags, top_vals = np.unique(pos_frags, return_counts=True)
-
         for frag, val in zip(top_frags, top_vals):
-            top_counter[frag] += val
+            top_counter_frag[frag] += val
 
-    # bottom-k negatives
+    # bottom-k negatives - Fragments
     neg_sel = np.where(mask_frag < 0)[0]
     if len(neg_sel) > 0:
         neg_sel = neg_sel[np.argsort(mask_frag[neg_sel])]
         neg_sel = np.array([i for i in neg_sel if i not in pos_idx])
         neg_idx = neg_sel[:cut]
+
         neg_frags = fragments[neg_idx]
         bot_frags, bot_vals = np.unique(neg_frags, return_counts=True)
-
         for frag, val in zip(bot_frags, bot_vals):
-            bot_counter[frag] += val
+            bot_counter_frag[frag] += val
+
+    # Feature
+    mask_label = node_mask.sum(dim=0).numpy().round(3)
+    top, bot = _get_cut(mask_label, labels, k=10)
+
+    for lab in top[0]:
+        top_counter_lbl[lab] += 1
+    for lab in bot[0]:
+        bot_counter_lbl[lab] += 1
 
 
-def plot_counters(correct, wrong, out, top_n=35):
+def plot_counters(data, out, prefix="", top_n=35):
     fig, axes = plt.subplots(2, 2, figsize=(16, 12))
 
     # Extract data
-    top_correct, bot_correct = correct
-    top_wrong, bot_wrong = wrong
+    top_correct, bot_correct, top_wrong, bot_wrong = data
 
     def prepare_data(counter, top_n=None):
         sorted_items = sorted(counter.items(), key=lambda x: x[1],
@@ -248,6 +294,6 @@ def plot_counters(correct, wrong, out, top_n=35):
              fontsize=14, fontweight="bold")
 
     plt.tight_layout(rect=[0, 0, 1, 0.93])
-    out_feat = out / "0_fragments.svg"
+    out_feat = out / f"all_{prefix}.svg"
     fig.savefig(out_feat, format="svg")
     plt.close(fig)
