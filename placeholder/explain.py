@@ -85,6 +85,8 @@ def main():
 
     top_k = defaultdict(float)
     bot_k = defaultdict(float)
+    frag_top = defaultdict(float)
+    frag_bot = defaultdict(float)
     for data in tqdm(dataset, ncols=120, desc="Explaining"):
         data.to(device)
         batch = torch.zeros(data.x.shape[0], dtype=int, device=device)
@@ -105,14 +107,20 @@ def main():
                                 batch=batch)
         node_mask = explanation.node_mask
 
-        top, bot = explain.retrieve_info(node_mask, 10)
+        top, bot = explain.retrieve_info(data, node_mask, 10)
         for label, contrib in zip(top[0], top[1]):
             top_k[label] += abs(contrib)
         for label, contrib in zip(bot[0], bot[1]):
             bot_k[label] += abs(contrib)
 
+        for label in top[3]:
+            frag_top[label] += 1
+        for label in bot[3]:
+            frag_bot[label] += 1
+
         explain.plot_fragments(data, node_mask, image_dir, 10)
         explain.plot_importance(data, node_mask, image_dir, 10)
         explain.plot_explain(data, node_mask, pred, image_dir)
 
-    explain.plot_general(top_k, bot_k, image_dir)
+    # explain.plot_general(top_k, bot_k, image_dir)
+    explain.plot_general(frag_top, frag_bot, image_dir)
