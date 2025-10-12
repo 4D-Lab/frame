@@ -11,7 +11,7 @@ from tqdm import tqdm
 from torch_geometric.explain import Explainer, CaptumExplainer
 
 from placeholder.source import explain, models
-
+from torch_geometric.loader import DataLoader
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
@@ -31,8 +31,8 @@ def main():
             tune[name] = float(bounds["value"])
 
     path_checkpoint = config["path_checkpoint"]
-    method = config.get("method", "ig").lower()
     model_name = config.get("model", "gat").lower()
+    batch_size = config.get("batch_size", 64)
 
     # * Initialize
     name = config["name"]
@@ -42,8 +42,8 @@ def main():
 
     cwd = Path(os.getcwd())
     project_dir = cwd / "output" / name
-    image_dir = project_dir / "explain"
-    os.makedirs(image_dir, exist_ok=True)
+    out = project_dir / "explain"
+    os.makedirs(out, exist_ok=True)
 
     # * Load dataset
     path_joblib = Path(config["path_joblib"])
@@ -54,68 +54,57 @@ def main():
     tune["bce_weight"] = data["metadata"]["bce_weight"]
     loader = data["metadata"]["loader"]
 
+    dataloader = DataLoader(dataset, batch_size=batch_size,
+                            num_workers=4,
+                            persistent_workers=True)
+
     # * Get checkpoint and prepare Explainer
     model = models.select_model(model_name, tune)
     model.load_state_dict(torch.load(path_checkpoint))
     model.eval()
 
-    mode = "multiclass_classification"
-    if method.lower() == "ig":
-        explainer = Explainer(model=model,
-                              algorithm=CaptumExplainer("IntegratedGradients"),
-                              explanation_type="model",
-                              edge_mask_type="object",
-                              node_mask_type="attributes",
-                              model_config=dict(mode=mode,
-                                                task_level="graph",
-                                                return_type="raw"))
-
-    elif method.lower() == "shapley":
-        explainer = Explainer(model=model,
-                              algorithm=CaptumExplainer(
-                                  "ShapleyValueSampling"),
-                              explanation_type="model",
-                              edge_mask_type="object",
-                              node_mask_type="attributes",
-                              model_config=dict(mode=mode,
-                                                task_level="graph",
-                                                return_type="raw"))
-
-    else:
-        raise NotImplementedError("Method not availabe")
+    explainer = Explainer(model=model,
+                          algorithm=CaptumExplainer("IntegratedGradients"),
+                          explanation_type="model",
+                          edge_mask_type="object",
+                          node_mask_type="attributes",
+                          model_config=dict(mode="multiclass_classification",
+                                            task_level="graph",
+                                            return_type="raw"))
 
     # Create counters
-    top_frag_correct, bot_frag_correct = Counter(), Counter()
-    top_frag_wrong, bot_frag_wrong = Counter(), Counter()
-    fragments = (top_frag_correct, bot_frag_correct,
-                 top_frag_wrong, bot_frag_wrong)
-    top_lbl_correct, bot_lbl_correct = Counter(), Counter()
-    top_lbl_wrong, bot_lbl_wrong = Counter(), Counter()
-    label = (top_lbl_correct, bot_lbl_correct,
-             top_lbl_wrong, bot_lbl_wrong)
+    count_frag = {"0_0": {0: Counter(), 1: Counter()},
+                  "0_1": {0: Counter(), 1: Counter()},
+                  "1_1": {0: Counter(), 1: Counter()},
+                  "1_0": {0: Counter(), 1: Counter()}}
 
-    for data in tqdm(dataset, ncols=120, desc="Explaining"):
+    count_label = {"0_0": {0: Counter(), 1: Counter()},
+                   "0_1": {0: Counter(), 1: Counter()},
+                   "1_1": {0: Counter(), 1: Counter()},
+                   "1_0": {0: Counter(), 1: Counter()}}
+
+    for data in tqdm(dataloader, ncols=120, desc="Explaining"):
         data.to(device)
-        batch = torch.zeros(data.x.shape[0], dtype=int, device=device)
 
         # * Make predictions
-        out = model(x=data.x.float(),
-                    edge_index=data.edge_index,
-                    edge_attr=data.edge_attr.float(),
-                    batch=batch)
+        model_out = model(x=data.x.float(),
+                          edge_index=data.edge_index,
+                          edge_attr=data.edge_attr.float(),
+                          batch=data.batch)
 
         # * Read prediction values
-        detach = torch.sigmoid(out).cpu().detach()
-        pred = list(torch.ravel(detach).cpu().detach().numpy())[0]
+        detach = torch.sigmoid(model_out).cpu().detach()
+        pred_lbl = (detach >= 0.5).int()
+        pred = list(torch.ravel(detach).cpu().detach().numpy())
 
         # * Explain
         explanation = explainer(data.x.float(), data.edge_index,
                                 edge_attr=data.edge_attr.float(),
-                                batch=batch)
-        node_mask = explanation.node_mask.detach().cpu()
+                                batch=data.batch)
 
-        explain.retrieve_info(data, node_mask, pred, loader, fragments, label)
-        explain.plot_explanations(data, node_mask, pred, image_dir, loader)
+        mol_exp = explain.MolExplain(explanation, pred, pred_lbl, loader, out)
+        mol_exp.retrieve_info(data, count_frag, count_label)
+        mol_exp.plot_explanations(data)
 
-    explain.plot_counters(fragments, image_dir, "frag")
-    explain.plot_counters(label, image_dir, "label")
+    explain.plot_counters(count_frag, out, "frag")
+    explain.plot_counters(count_label, out, "label")

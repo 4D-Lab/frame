@@ -9,7 +9,6 @@ Data:
   batch_size: 128
   patience: 5
   loader: default  # "default" or "decompose"
-  method: ig  # "ig" or "shapley"
 
 Tune:
   hidden_channels:
