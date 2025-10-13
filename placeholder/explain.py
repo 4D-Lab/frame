@@ -85,25 +85,25 @@ def main():
 
     with open(out / "predictions.csv", "w") as f:
         f.write("id,smiles,real,pred_label,pred,"
-                "feat_name_0_A,feat_contrib_0_A"
+                "feat_name_0_A,feat_contrib_0_A,"
                 "feat_name_0_B,feat_contrib_0_B,"
                 "feat_name_0_C,feat_contrib_0_C,"
                 "feat_name_0_D,feat_contrib_0_D,"
                 "feat_name_0_E,feat_contrib_0_E,"
 
-                "feat_name_1_A,feat_contrib_1_A"
+                "feat_name_1_A,feat_contrib_1_A,"
                 "feat_name_1_B,feat_contrib_1_B,"
                 "feat_name_1_C,feat_contrib_1_C,"
                 "feat_name_1_D,feat_contrib_1_D,"
                 "feat_name_1_E,feat_contrib_1_E,"
 
-                "frag_name_0_A,frag_contrib_0_A"
+                "frag_name_0_A,frag_contrib_0_A,"
                 "frag_name_0_B,frag_contrib_0_B,"
                 "frag_name_0_C,frag_contrib_0_C,"
                 "frag_name_0_D,frag_contrib_0_D,"
                 "frag_name_0_E,frag_contrib_0_E,"
 
-                "frag_name_1_A,frag_contrib_1_A"
+                "frag_name_1_A,frag_contrib_1_A,"
                 "frag_name_1_B,frag_contrib_1_B,"
                 "frag_name_1_C,frag_contrib_1_C,"
                 "frag_name_1_D,frag_contrib_1_D,"

@@ -110,6 +110,8 @@ class MolExplain:
                 txt_feat_0.append(f"{lbl},{lbl_contrib:.3f}")
 
             # Prepare features to csv file
+            txt_feat_0 = (txt_feat_0 + ["None,None"] * 5)[:5]
+            txt_feat_1 = (txt_feat_1 + ["None,None"] * 5)[:5]
             txt_feat = txt_feat_0 + txt_feat_1
             txt_feat = ",".join(txt_feat)
 
