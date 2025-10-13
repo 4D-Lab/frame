@@ -4,4 +4,5 @@ optuna==4.5.0
 pandas==2.3.2
 rdkit==2025.3.6
 scikit-learn==1.7.2
+svgutils==0.3.4
 torch-geometric==2.6.1

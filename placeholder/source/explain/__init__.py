@@ -55,36 +55,68 @@ class MolExplain:
 
         for idx, node_mask in enumerate(masks):
             data = graphs[idx]
+            real_label = int(data.y.cpu().numpy()[0])
+            pred = self.pred[idx]
             pred_label = self.pred_lbl[idx].numpy()[0]
             fragments = np.array(data.frag)
             mask_frag = node_mask.sum(dim=1).numpy()
             mask_label = node_mask.sum(dim=0).numpy().round(3)
 
             # Unpack counters
-            key = f"{pred_label}_{int(data.y)}"
+            key = f"{pred_label}_{real_label}"
             class_0_frag = count_frag[key][0]
             class_1_frag = count_frag[key][1]
             class_0_lbl = count_lbl[key][0]
             class_1_lbl = count_lbl[key][1]
 
             # * Count fragments
-            top_fragments = self._get_top(mask_frag, fragments)
+            top_frags = self._get_top(mask_frag, fragments)
 
-            if len(top_fragments[1]) > 0:
-                for frag in top_fragments[1]["fragment"]:
+            txt_frag_0, txt_frag_1 = [], []
+            if len(top_frags[1]) > 0:
+                for idx in range(len(top_frags[1]["contrib"])):
+                    frag = top_frags[1]["fragment"][idx]
+                    frag_contrib = top_frags[1]["contrib"][idx]
                     class_1_frag[frag] += 1
+                    txt_frag_1.append(f"{frag},{frag_contrib:.3f}")
 
-            if len(top_fragments[0]) > 0:
-                for frag in top_fragments[0]["fragment"]:
+            if len(top_frags[0]) > 0:
+                for idx in range(len(top_frags[0]["contrib"])):
+                    frag = top_frags[0]["fragment"][idx]
+                    frag_contrib = top_frags[0]["contrib"][idx]
                     class_0_frag[frag] += 1
+                    txt_frag_0.append(f"{frag},{frag_contrib:.3f}")
+
+            # Prepare fragments to csv file
+            txt_frag_0 = (txt_frag_0 + ["None,None"] * 5)[:5]
+            txt_frag_1 = (txt_frag_1 + ["None,None"] * 5)[:5]
+            txt_frag = txt_frag_0 + txt_frag_1
+            txt_frag = ",".join(txt_frag)
 
             # * Count features
-            top_features = self._get_top(mask_label)
+            top_feats = self._get_top(mask_label)
 
-            for feat in top_features[1]["labels"]:
-                class_1_lbl[feat] += 1
-            for feat in top_features[0]["labels"]:
-                class_0_lbl[feat] += 1
+            txt_feat_0, txt_feat_1 = [], []
+            for idx in range(len(top_feats[1]["contrib"])):
+                lbl = top_feats[1]["labels"][idx]
+                lbl_contrib = top_feats[1]["contrib"][idx]
+                class_1_lbl[lbl] += 1
+                txt_feat_1.append(f"{lbl},{lbl_contrib:.3f}")
+
+            for idx in range(len(top_feats[0]["contrib"])):
+                lbl = top_feats[0]["labels"][idx]
+                lbl_contrib = top_feats[0]["contrib"][idx]
+                class_0_lbl[lbl] += 1
+                txt_feat_0.append(f"{lbl},{lbl_contrib:.3f}")
+
+            # Prepare features to csv file
+            txt_feat = txt_feat_0 + txt_feat_1
+            txt_feat = ",".join(txt_feat)
+
+            # * Export prediction
+            with open(self.out / "predictions.csv", "a") as f:
+                f.write(f"{data.idx},{data.smiles},{real_label},{pred_label},"
+                        f"{pred:.3f},{txt_feat},{txt_frag}\n")
 
     def plot_explanations(self, graphs):
         batch_num = self.batch.unique()
