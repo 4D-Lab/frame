@@ -28,7 +28,7 @@ def model_setup(model_name, config):
 
 def select_model(model_name, config):
     if model_name == "attentive":
-        model = pyg_models.AttentiveFP(config).to(device)
+        model = pyg_models.GNN_AttentiveFP(config).to(device)
     elif model_name == "gat":
         model = pyg_models.GNN_GAT(config).to(device)
     elif model_name == "sage":
