@@ -63,8 +63,8 @@ class GNN_GIN(torch.nn.Module):
                          out_channels=1,
                          dropout=dropout)
 
-    def forward(self, x, edge_index, edge_attr, batch):
-        x = self.model(x, edge_index, edge_attr=edge_attr)
+    def forward(self, x, edge_index, batch):
+        x = self.model(x, edge_index)
         x_pool = global_mean_pool(x, batch)
 
         return x_pool
@@ -90,8 +90,8 @@ class GNN_GAT(torch.nn.Module):
                          heads=heads,
                          edge_dim=edge_dim)
 
-    def forward(self, x, edge_index, edge_attr, batch):
-        x = self.model(x, edge_index, edge_attr=edge_attr)
+    def forward(self, x, edge_index, batch):
+        x = self.model(x, edge_index)
         x_pool = global_mean_pool(x, batch)
 
         return x_pool
@@ -115,7 +115,7 @@ class GNN_AttentiveFP(torch.nn.Module):
                                  dropout=dropout,
                                  num_timesteps=num_timesteps)
 
-    def forward(self, x, edge_index, edge_attr, batch):
-        x = self.model(x, edge_index, edge_attr=edge_attr, batch=batch)
+    def forward(self, x, edge_index, batch):
+        x = self.model(x, edge_index, batch=batch)
 
         return x

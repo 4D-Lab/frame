@@ -1,5 +1,6 @@
 import torch
 from placeholder.source import train
+from placeholder.source.models import tentative
 from placeholder.source.models import pyg_models
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -27,7 +28,7 @@ def model_setup(model_name, config):
 
 def select_model(model_name, config):
     if model_name == "attentive":
-        model = pyg_models.GNN_AttentiveFP(config).to(device)
+        model = pyg_models.AttentiveFP(config).to(device)
     elif model_name == "gat":
         model = pyg_models.GNN_GAT(config).to(device)
     elif model_name == "sage":
@@ -36,6 +37,8 @@ def select_model(model_name, config):
         model = pyg_models.GNN_GIN(config).to(device)
     elif model_name == "gcn":
         model = pyg_models.GNN_GCN(config).to(device)
+    elif model_name == "tentative":
+        model = tentative.TentativeModel(config).to(device)
     else:
         raise NotImplementedError("Model not available")
 
