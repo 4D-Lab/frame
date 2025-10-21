@@ -6,6 +6,7 @@ from lxml import etree
 import matplotlib.pyplot as plt
 import svgutils.transform as sg
 from rdkit.Chem.Draw import rdMolDraw2D
+from matplotlib.colors import LinearSegmentedColormap
 from matplotlib.colors import Normalize, TwoSlopeNorm
 
 mpl.use("Agg")
@@ -49,7 +50,7 @@ class MolExplain:
         elif loader == "decompose_v2":
             self.labels = np.array(V2)
 
-    def retrieve_info(self, graphs, count_frag, count_lbl):
+    def retrieve_info(self, graphs):
         batch_num = self.batch.unique()
         masks = [self.mask[self.batch == b] for b in batch_num]
 
@@ -59,66 +60,20 @@ class MolExplain:
             pred = self.pred[idx]
             pred_label = self.pred_lbl[idx].numpy()[0]
             fragments = np.array(data.frag)
-            mask_frag = node_mask.sum(dim=1).numpy()
-            mask_label = node_mask.sum(dim=0).numpy().round(3)
 
-            # Unpack counters
-            key = f"{pred_label}_{real_label}"
-            class_0_frag = count_frag[key][0]
-            class_1_frag = count_frag[key][1]
-            class_0_lbl = count_lbl[key][0]
-            class_1_lbl = count_lbl[key][1]
+            mask_list = node_mask.cpu().numpy().tolist()
+            mask_list = [[f"{m:.3f}" for m in mask] for mask in mask_list]
 
-            # * Count fragments
-            top_frags = self._get_top(mask_frag, fragments)
-
-            txt_frag_0, txt_frag_1 = [], []
-            if len(top_frags[1]) > 0:
-                for idx in range(len(top_frags[1]["contrib"])):
-                    frag = top_frags[1]["fragment"][idx]
-                    frag_contrib = top_frags[1]["contrib"][idx]
-                    class_1_frag[frag] += 1
-                    txt_frag_1.append(f"{frag},{frag_contrib:.3f}")
-
-            if len(top_frags[0]) > 0:
-                for idx in range(len(top_frags[0]["contrib"])):
-                    frag = top_frags[0]["fragment"][idx]
-                    frag_contrib = top_frags[0]["contrib"][idx]
-                    class_0_frag[frag] += 1
-                    txt_frag_0.append(f"{frag},{frag_contrib:.3f}")
-
-            # Prepare fragments to csv file
-            txt_frag_0 = (txt_frag_0 + ["None,None"] * 5)[:5]
-            txt_frag_1 = (txt_frag_1 + ["None,None"] * 5)[:5]
-            txt_frag = txt_frag_0 + txt_frag_1
-            txt_frag = ",".join(txt_frag)
-
-            # * Count features
-            top_feats = self._get_top(mask_label)
-
-            txt_feat_0, txt_feat_1 = [], []
-            for idx in range(len(top_feats[1]["contrib"])):
-                lbl = top_feats[1]["labels"][idx]
-                lbl_contrib = top_feats[1]["contrib"][idx]
-                class_1_lbl[lbl] += 1
-                txt_feat_1.append(f"{lbl},{lbl_contrib:.3f}")
-
-            for idx in range(len(top_feats[0]["contrib"])):
-                lbl = top_feats[0]["labels"][idx]
-                lbl_contrib = top_feats[0]["contrib"][idx]
-                class_0_lbl[lbl] += 1
-                txt_feat_0.append(f"{lbl},{lbl_contrib:.3f}")
-
-            # Prepare features to csv file
-            txt_feat_0 = (txt_feat_0 + ["None,None"] * 5)[:5]
-            txt_feat_1 = (txt_feat_1 + ["None,None"] * 5)[:5]
-            txt_feat = txt_feat_0 + txt_feat_1
-            txt_feat = ",".join(txt_feat)
+            text = []
+            for mask, frag in zip(mask_list, fragments):
+                contribs = ",".join(mask)
+                txt = (f"{data.idx},{data.smiles},{real_label},{pred_label},"
+                       f"{pred:.3f},{frag},{contribs}\n")
+                text.append(txt)
 
             # * Export prediction
             with open(self.out / "predictions.csv", "a") as f:
-                f.write(f"{data.idx},{data.smiles},{real_label},{pred_label},"
-                        f"{pred:.3f},{txt_feat},{txt_frag}\n")
+                f.writelines(text)
 
     def plot_explanations(self, graphs):
         batch_num = self.batch.unique()
@@ -139,8 +94,8 @@ class MolExplain:
             fig, ax = plt.subplots(figsize=(10, 6))
             all_lbl = np.append(feats[1]["labels"], feats[0]["labels"])
             all_val = np.append(feats[1]["contrib"], feats[0]["contrib"])
-            colors = (["RoyalBlue"] * len(feats[1]["labels"]) +
-                      ["Crimson"] * len(feats[0]["labels"]))
+            colors = (["SteelBlue"] * len(feats[1]["labels"]) +
+                      ["DarkOrange"] * len(feats[0]["labels"]))
 
             ax.barh(all_lbl, all_val, color=colors)
             ax.set_title(f"Top {self.k} Features - {data.idx}")
@@ -165,18 +120,26 @@ class MolExplain:
             min_val = mask_atom.min()
             max_val = mask_atom.max()
             if min_val > 0:
+                max_val *= 1.3
                 cmap = mpl.cm.ScalarMappable(norm=Normalize(vmin=0,
                                                             vmax=max_val),
                                              cmap=mpl.cm.Blues)
             elif max_val < 0:
+                min_val *= 1.3
                 cmap = mpl.cm.ScalarMappable(norm=Normalize(vmin=min_val,
                                                             vmax=0),
-                                             cmap=mpl.cm.Reds_r)
+                                             cmap=mpl.cm.Oranges_r)
             else:
+                min_val *= 1.3
+                max_val *= 1.3
+                pos_colors = plt.cm.Blues(np.linspace(0, 1, 128))
+                neg_colors = plt.cm.Oranges_r(np.linspace(0, 1, 128))
+                combined = np.vstack((neg_colors, pos_colors))
+                color = LinearSegmentedColormap.from_list("OrBu", combined)
                 cmap = mpl.cm.ScalarMappable(norm=TwoSlopeNorm(vmin=min_val,
                                                                vcenter=0,
                                                                vmax=max_val),
-                                             cmap=mpl.cm.RdBu)
+                                             cmap=color)
 
             highlight_node = {}
             for atom in mol.GetAtoms():

@@ -13,6 +13,7 @@ import optuna
 import numpy as np
 import pandas as pd
 from tqdm import tqdm
+import plotly.graph_objects as go
 from torch_geometric.loader import DataLoader
 
 from placeholder.source import models, train, utils
@@ -181,3 +182,28 @@ def main():
     if study.study_name == name:
         df = get_dataframe(study)
         df.to_csv(project_dir / f"{name}.csv", index=False)
+
+    # plot parallel plot
+    header = ["optim", "acc", "acc_bal", "f1",
+              "prec", "rec", "mcc", "avg_prec",
+              "roc_auc", "n_params", "fit_time"]
+    feats = [col for col in list(df.columns) if col not in header]
+    feats = feats + ["mcc"]
+
+    dimensions = []
+    for col in feats:
+        col_values = df[col].values
+        dim = dict(label=col, values=col_values,
+                   range=[col_values.min(), col_values.max()])
+        dimensions.append(dim)
+
+    fig = go.Figure(data=go.Parcoords(line=dict(color=df["mcc"],
+                                                colorscale="viridis",
+                                                showscale=False),
+                                      dimensions=dimensions))
+
+    fig.update_layout(width=1600, height=500,
+                      margin=dict(l=30, r=20, t=45, b=35))
+
+    fig.write_html(project_dir / f"{name}.html", include_plotlyjs="cdn",
+                   config={"displaylogo": False})

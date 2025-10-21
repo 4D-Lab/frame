@@ -2,7 +2,6 @@ import os
 import uuid
 import argparse
 from pathlib import Path
-from collections import Counter
 
 import yaml
 import torch
@@ -72,42 +71,10 @@ def main():
                                             task_level="graph",
                                             return_type="raw"))
 
-    # Create counters
-    count_frag = {"0_0": {0: Counter(), 1: Counter()},
-                  "0_1": {0: Counter(), 1: Counter()},
-                  "1_1": {0: Counter(), 1: Counter()},
-                  "1_0": {0: Counter(), 1: Counter()}}
-
-    count_label = {"0_0": {0: Counter(), 1: Counter()},
-                   "0_1": {0: Counter(), 1: Counter()},
-                   "1_1": {0: Counter(), 1: Counter()},
-                   "1_0": {0: Counter(), 1: Counter()}}
-
+    labels = ",".join(explain.V1)
+    header = "id,smiles,real,pred_label,pred,fragment,"
     with open(out / "predictions.csv", "w") as f:
-        f.write("id,smiles,real,pred_label,pred,"
-                "feat_name_0_A,feat_contrib_0_A,"
-                "feat_name_0_B,feat_contrib_0_B,"
-                "feat_name_0_C,feat_contrib_0_C,"
-                "feat_name_0_D,feat_contrib_0_D,"
-                "feat_name_0_E,feat_contrib_0_E,"
-
-                "feat_name_1_A,feat_contrib_1_A,"
-                "feat_name_1_B,feat_contrib_1_B,"
-                "feat_name_1_C,feat_contrib_1_C,"
-                "feat_name_1_D,feat_contrib_1_D,"
-                "feat_name_1_E,feat_contrib_1_E,"
-
-                "frag_name_0_A,frag_contrib_0_A,"
-                "frag_name_0_B,frag_contrib_0_B,"
-                "frag_name_0_C,frag_contrib_0_C,"
-                "frag_name_0_D,frag_contrib_0_D,"
-                "frag_name_0_E,frag_contrib_0_E,"
-
-                "frag_name_1_A,frag_contrib_1_A,"
-                "frag_name_1_B,frag_contrib_1_B,"
-                "frag_name_1_C,frag_contrib_1_C,"
-                "frag_name_1_D,frag_contrib_1_D,"
-                "frag_name_1_E,frag_contrib_1_E\n")
+        f.write(f"{header+labels}\n")
 
     for data in tqdm(dataloader, ncols=120, desc="Explaining"):
         data.to(device)
@@ -129,8 +96,5 @@ def main():
                                 batch=data.batch)
 
         mol_exp = explain.MolExplain(explanation, pred, pred_lbl, loader, out)
-        mol_exp.retrieve_info(data, count_frag, count_label)
+        mol_exp.retrieve_info(data)
         mol_exp.plot_explanations(data)
-
-    explain.plot_counters(count_frag, out, "frag")
-    explain.plot_counters(count_label, out, "label")
