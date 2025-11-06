@@ -29,6 +29,7 @@ def train_epoch(model, optim, scheduler, lossfn, loader):
         # * Make predictions
         out = model(x=batch.x.float(),
                     edge_index=batch.edge_index,
+                    edge_attr=batch.edge_attr,
                     batch=batch.batch)
 
         # * Compute loss
@@ -61,6 +62,7 @@ def test_epoch(model, loader):
         # * Make predictions
         out = model(x=batch.x.float(),
                     edge_index=batch.edge_index,
+                    edge_attr=batch.edge_attr,
                     batch=batch.batch)
 
         # * Read prediction values

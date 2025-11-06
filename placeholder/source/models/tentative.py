@@ -59,7 +59,8 @@ class TentativeModel(torch.nn.Module):
         self.reset_parameters()
         self.set_seed(8)
 
-    def forward(self, x: Tensor, edge_index: Tensor, batch: Tensor):
+    def forward(self, x: Tensor, edge_index: Tensor,
+                edge_attr: Tensor, batch: Tensor):
         # MFconv block
         h = x.clone()
         h = F.elu(self.mf(x, edge_index))
