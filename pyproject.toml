@@ -3,10 +3,10 @@ requires = ["setuptools==80.9.0", "wheel==0.45.1"]
 build-backend = "setuptools.build_meta"
 
 [tool.setuptools]
-packages = ["placeholder"]
+packages = ["frame"]
 
 [project]
-name = "placeholder"
+name = "frame"
 version = "0.0.0"
 requires-python = ">=3.12"
 authors = [{name = "Rafael Lopes", email = "rafael.lopes@uef.fi"}]
@@ -25,7 +25,7 @@ dev = ["bump-my-version==1.1.2",
 dependencies = {file = ["requirements.txt"]}
 
 [project.scripts]
-placeholder_tune = "placeholder.tune:main"
-placeholder_train = "placeholder.train:main"
-placeholder_gen = "placeholder.generate:main"
-placeholder_explain = "placeholder.explain:main"
+frame_tune = "frame.tune:main"
+frame_train = "frame.train:main"
+frame_gen = "frame.generate:main"
+frame_explain = "frame.explain:main"

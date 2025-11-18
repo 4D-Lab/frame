@@ -5,7 +5,7 @@ Data:
   path_checkpoint: "path/to/checkpoint.pt"
   trials: 2
   epochs: 10
-  model: gat
+  model: gat # gcn, gat, attentive
   batch_size: 128
   patience: 5
   loader: default  # "default" or "decompose"

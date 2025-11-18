@@ -1,61 +1,84 @@
-# **Placeholder**
+# **FRAME - Fragments for Molecular Explanation**
 
-Lorem ipsum dolor sit amet, consectetur adipiscing elit, sed do eiusmod tempor incididunt ut labore et dolore magna aliqua. Ut enim ad minim veniam, quis nostrud exercitation ullamco laboris nisi ut aliquip ex ea commodo consequat.
-
-## Quick summary
-- Language: Python >= 3.12
-- Placeholder
-- Placeholder
-- Placeholder
+This repository introduces FRAME, a framework for learning fragment-based molecular representations to enhance the interpretability of graph neural networks in drug discovery. FRAME represents chemically meaningful fragments as graph nodes and is compatible with several GNN architectures, including GCN, GAT, and AttentiveFP. It also integrates Integrated Gradients to generate more transparent and chemically grounded model explanations.
 
 ## ⚙️ **Installation**
-1. Install Python3-tk and python3-dev with the command:
+1. Clone the repo:
 
-    ```console
-    sudo apt install python3-dev python3-tk
-    ```
+2. Create and activate your `virtualenv` with Python 3.12, for example as described [here](https://docs.python.org/3/library/venv.html).
 
-2. Clone the repo:
-
-3. Create and activate your `virtualenv` with Python 3.12, for example as described [here](https://docs.python.org/3/library/venv.html).
-
-4. Install [PyTorch **2.8.0**](https://pytorch.org/get-started/locally/) using:
+3. Install [PyTorch **2.8.0**](https://pytorch.org/get-started/locally/) using:
 
     ```console
     pip install torch==2.8.0 -f https://download.pytorch.org/whl/cu129
     ```
 
-5. Install Placeholder using:
+4. Install FRAME using:
 
     ```console
-    python -m pip install -e .
+    python -m pip install .
     ```
     or for development:
     ```console
-    python -m pip install -e .[dev]
+    python -m pip install -e .
     ```
 
-## 📄 Configuration
-All runtime options live in a YAML config (an example is provided as `parameters.yaml`). Important sections:
-- `Data`: dataset paths, run name, model choice, batch size, epochs, trials, patience, loader type (`default` or `decompose`) and `path_joblib`/`path_csv`.  
-- `Tune`: hyperparameter ranges or fixed values used by the tuning and training scripts.
+## 📂 Dataset Requirements
+The CSV file used in FRAME **must** include the following columns:
 
-The CSV file must contain the columns: `id`, `smiles`, `label`, and `set` (where `set` should be one of `train`, `test`, or `valid`).
+- **`id`** – A unique identifier for each entry.  
+- **`smiles`** – The SMILES representation of the molecule.  
+- **`label`** – The target value or class associated with each molecule.  
+- **`set`** – Indicates the data split for each entry. This column must contain one of the following values:  
+  - `train`  
+  - `test`  
+  - `valid`
+
+Please ensure that all entries follow this structure so the dataset can be correctly loaded and processed by the pipeline.
+
+
+## 📄 Configuration
+All model parameters and runtime settings are defined in a YAML configuration file.  
+An example file, [`parameters.yaml`](./parameters.yaml), is provided.
+
+### Example: Defining hyperparameter ranges for tuning
+To enable hyperparameter optimization, define parameters using `min` and `max`:
+
+```yaml
+Tune:
+  hidden_channels:
+    min: 64
+    max: 128
+```
+
+### Example: Setting fixed parameter values
+If you want to specify fixed values without optimization, use `value`:
+
+```yaml
+Tune:
+  hidden_channels:
+    value: 64
+```
 
 ## 🔎 **Usage**
 All entry points accept a `-c/--config` parameter pointing to the YAML config file.
 
 - Generate a processed dataset:
 ```bash
-placeholder_gen -c parameters.yaml
+frame_gen -c parameters.yaml
 ```
 
 - Run Optuna hyperparameter tuning:
 ```bash
-placeholder_tune -c parameters.yaml
+frame_tune -c parameters.yaml
 ```
 
 - Train a single model using values in the `Tune` section:
 ```bash
-placeholder_train -c parameters.yaml
+frame_train -c parameters.yaml
+```
+
+- Explain and run model prediction:
+```bash
+frame_explain -c parameters.yaml
 ```
