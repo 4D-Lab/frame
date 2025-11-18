@@ -49,7 +49,7 @@ def train_epoch(model, optim, scheduler, lossfn, loader):
 
 
 @torch.no_grad()
-def test_epoch(model, loader):
+def valid_epoch(model, loader):
     model.eval()
 
     true = []
