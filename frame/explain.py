@@ -9,7 +9,7 @@ import joblib
 from tqdm import tqdm
 from torch_geometric.explain import Explainer, CaptumExplainer
 
-from placeholder.source import explain, models
+from frame.source import explain, models
 from torch_geometric.loader import DataLoader
 device = "cuda" if torch.cuda.is_available() else "cpu"
 

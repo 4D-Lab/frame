@@ -11,7 +11,7 @@ import joblib
 from tqdm import tqdm
 from torch_geometric.loader import DataLoader
 
-from placeholder.source import models, train
+from frame.source import models, train
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 

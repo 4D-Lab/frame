@@ -1,8 +1,8 @@
 import torch
 import numpy as np
+from lxml import etree
 from rdkit import Chem
 import matplotlib as mpl
-from lxml import etree
 import matplotlib.pyplot as plt
 import svgutils.transform as sg
 from rdkit.Chem.Draw import rdMolDraw2D
@@ -22,16 +22,6 @@ V1 = ["atom_C", "atom_N", "atom_O", "atom_F", "atom_P",
       "TotalNumHs_2", "TotalNumHs_3", "TotalNumHs_4", "chirality",
       "chirality_R", "chirality_S"]
 
-V2 = ["WienerIndex", "RandicIndex", "MolWt", "NumAtoms",
-      "NumBonds", "NumHeavyAtoms", "NumHeteroatoms", "NumHDonors",
-      "NumHAcceptors", "NumRotatableBonds", "NumAromaticRings",
-      "NumAliphaticRings", "NumAmideBonds", "NumAtomStereoCenters",
-      "NHOHCount", "NOCount", "FractionCSP3", "BalabanJ", "BertzCT",
-      "Kappa1", "Kappa2", "Kappa3", "TPSA", "LabuteASA", "RadiusGyration",
-      "GeneralCharge", "Charge_mean", "Charge_std", "Charge_min",
-      "Charge_max", "Dipole_Debye", "DipoleVec_X", "DipoleVec_Y",
-      "DipoleVec_Z"]
-
 
 class MolExplain:
     def __init__(self, explanation, pred, pred_lbl, loader, out_dir, k=10):
@@ -44,12 +34,7 @@ class MolExplain:
         self.k = k
         self.cut = k // 2
 
-        if loader == "default":
-            self.labels = np.array(V1)
-        elif loader == "decompose":
-            self.labels = np.array(V1)
-        elif loader == "decompose_v2":
-            self.labels = np.array(V2)
+        self.labels = np.array(V1)
 
     def retrieve_info(self, graphs):
         if self.loader == "default":

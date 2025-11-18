@@ -16,7 +16,7 @@ from tqdm import tqdm
 import plotly.graph_objects as go
 from torch_geometric.loader import DataLoader
 
-from placeholder.source import models, train, utils
+from frame.source import models, train, utils
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 logger = utils.get_logger("TUNE", log_level="INFO")
