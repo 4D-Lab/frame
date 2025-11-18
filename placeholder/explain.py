@@ -36,7 +36,7 @@ def main():
     # * Initialize
     name = config["name"]
     if name.lower() == "none":
-        name = str(uuid.uuid4()).split["-"][0]
+        name = str(uuid.uuid4()).split("-")[0]
         config["name"] = name
 
     cwd = Path(os.getcwd())
@@ -70,11 +70,6 @@ def main():
                           model_config=dict(mode="multiclass_classification",
                                             task_level="graph",
                                             return_type="raw"))
-
-    labels = ",".join(explain.V1)
-    header = "id,smiles,real,pred_label,pred,fragment,"
-    with open(out / "predictions.csv", "w") as f:
-        f.write(f"{header+labels}\n")
 
     for data in tqdm(dataloader, ncols=120, desc="Explaining"):
         data.to(device)
