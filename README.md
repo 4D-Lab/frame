@@ -30,9 +30,9 @@ The CSV file used in FRAME **must** include the following columns:
 - **`smiles`** – The SMILES representation of the molecule.  
 - **`label`** – The target value or class associated with each molecule.  
 - **`set`** – Indicates the data split for each entry. This column must contain one of the following values:  
-  - `train`  
-  - `test`  
-  - `valid`
+  - `train` (training data) 
+  - `valid` (data used for early stopping) 
+  - `test` (external test data)
 
 Please ensure that all entries follow this structure so the dataset can be correctly loaded and processed by the pipeline.
 
@@ -76,6 +76,11 @@ frame_tune -c parameters.yaml
 - Train a single model using values in the `Tune` section:
 ```bash
 frame_train -c parameters.yaml
+```
+
+- Evaluate trained with the test set:
+```bash
+frame_eval -c parameters.yaml
 ```
 
 - Explain and run model prediction:

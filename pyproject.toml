@@ -28,4 +28,5 @@ dependencies = {file = ["requirements.txt"]}
 frame_tune = "frame.tune:main"
 frame_train = "frame.train:main"
 frame_gen = "frame.generate:main"
+frame_eval = "frame.evaluate:main"
 frame_explain = "frame.explain:main"
