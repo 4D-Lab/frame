@@ -109,11 +109,11 @@ class MolExplain:
 
             else:
                 # * Feature-level bar plot
-                self._bar_plot(node_mask, name)
+                # self._bar_plot(node_mask, name)
 
                 # * Fragment-level visualization
-                fragments = data.frag
-                self._frag_visualization(node_mask, fragments, name)
+                # fragments = data.frag
+                # self._frag_visualization(node_mask, fragments, name)
 
                 # * Molecule-level visualization
                 self._explain_frag(data, node_mask, pred, pred_label, name)
@@ -169,7 +169,7 @@ class MolExplain:
                                           {}, {}, {})
         drawer.FinishDrawing()
 
-        with open(self.out / f"{data.idx}_mol.svg", "w") as f:
+        with open(self.out / f"{data.idx}.svg", "w") as f:
             f.write(drawer.GetDrawingText())
 
     def _explain_frag(self, data, node_mask, pred, pred_label, name):
@@ -182,12 +182,12 @@ class MolExplain:
 
         min_val = mask_atom.min()
         max_val = mask_atom.max()
-        if min_val > 0:
+        if min_val >= 0:
             max_val *= 1.3
             cmap = mpl.cm.ScalarMappable(norm=Normalize(vmin=0,
                                                         vmax=max_val),
                                          cmap=mpl.cm.Blues)
-        elif max_val < 0:
+        elif max_val <= 0:
             min_val *= 1.3
             cmap = mpl.cm.ScalarMappable(norm=Normalize(vmin=min_val,
                                                         vmax=0),
@@ -225,7 +225,7 @@ class MolExplain:
                                           {}, {}, {})
         drawer.FinishDrawing()
 
-        with open(self.out / f"{name}_mol.svg", "w") as f:
+        with open(self.out / f"{name}.svg", "w") as f:
             f.write(drawer.GetDrawingText())
 
     def _bar_plot(self, node_mask, name):
