@@ -148,7 +148,7 @@ def main():
     # * Initialize
     name = params["Data"]["name"]
     if name.lower() == "none":
-        name = str(uuid.uuid4()).split["-"][0]
+        name = str(uuid.uuid4()).split("-")[0]
         params["Data"]["name"] = name
 
     cwd = Path(os.getcwd())
