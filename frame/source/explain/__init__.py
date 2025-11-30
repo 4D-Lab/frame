@@ -55,12 +55,15 @@ class MolExplain:
     def _info_atom(self, graphs):
         batch_num = self.batch.unique()
         masks = [self.mask[self.batch == b] for b in batch_num]
+        pred_label = ""
 
         for idx in range(len(masks)):
             data = graphs[idx]
             real_label = int(data.y.cpu().numpy()[0])
             pred = self.pred[idx]
-            pred_label = self.pred_lbl[idx].numpy()[0]
+
+            if self.pred_lbl[idx] is not None:
+                pred_label = self.pred_lbl[idx].numpy()[0]
 
             text = (f"{data.idx},{data.smiles},{real_label},"
                     f"{pred_label},{pred:.3f}\n")
@@ -72,13 +75,16 @@ class MolExplain:
     def _info_fragment(self, graphs):
         batch_num = self.batch.unique()
         masks = [self.mask[self.batch == b] for b in batch_num]
+        pred_label = ""
 
         for idx, node_mask in enumerate(masks):
             data = graphs[idx]
             real_label = int(data.y.cpu().numpy()[0])
             pred = self.pred[idx]
-            pred_label = self.pred_lbl[idx].numpy()[0]
             fragments = np.array(data.frag)
+
+            if self.pred_lbl[idx] is not None:
+                pred_label = self.pred_lbl[idx].numpy()[0]
 
             mask_list = node_mask.cpu().numpy().tolist()
             mask_list = [[f"{m:.3f}" for m in mask] for mask in mask_list]
@@ -97,12 +103,14 @@ class MolExplain:
     def plot_explanations(self, graphs):
         batch_num = self.batch.unique()
         masks = [self.mask[self.batch == b] for b in batch_num]
+        pred_label = ""
 
         for idx, node_mask in enumerate(masks):
             data = graphs[idx]
             name = data.idx
             pred = self.pred[idx]
-            pred_label = self.pred_lbl[idx].numpy()[0]
+            if self.pred_lbl[idx] is not None:
+                pred_label = self.pred_lbl[idx].numpy()[0]
 
             if self.loader == "default":
                 self._explain_atom(data, node_mask, pred, pred_label, name)

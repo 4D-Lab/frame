@@ -30,6 +30,7 @@ def objective(trial, params, dataset):
     patience = params["Data"].get("patience", 5)
     model_name = params["Data"].get("model", "gat").lower()
     max_retries = params["Data"].get("max_retries", 5)
+    task = params["Data"].get("task", "classification").lower()
 
     project_dir = params["Data"]["project_dir"]
 
@@ -38,6 +39,7 @@ def objective(trial, params, dataset):
     config["feat_size"] = params["Data"]["feat_size"]
     config["edge_dim"] = params["Data"]["edge_dim"]
     config["bce_weight"] = params["Data"]["bce_weight"]
+    config["task"] = task
     params["Data"]["trial"] = trial
 
     # * Prepare dataloader
@@ -58,7 +60,7 @@ def objective(trial, params, dataset):
     retries = 0
     while retries < max_retries:
         try:
-            best_metric = -1.0
+            best_metric = -1000
             patience_counter = 0
             best_model_state = None
 
@@ -66,12 +68,12 @@ def objective(trial, params, dataset):
                 start = time.time()
                 _ = train.train_epoch(model, optim, schdlr,
                                       lossfn, train_loader)
-                val_metrics = train.valid_epoch(model, valid_loader)
+                val_metrics = train.valid_epoch(model, task, valid_loader)
 
                 # Early stopping check
-                if val_metrics["mcc"] > best_metric:
+                if val_metrics["optim"] > best_metric:
                     patience_counter = 0
-                    best_metric = val_metrics["mcc"]
+                    best_metric = val_metrics["optim"]
                     best_model_state = copy.deepcopy(model.state_dict())
                 else:
                     patience_counter += 1
@@ -87,7 +89,7 @@ def objective(trial, params, dataset):
             trial_dir = project_dir / f"trial_{trial.number}"
             os.makedirs(trial_dir, exist_ok=True)
             torch.save(best_model_state, str(trial_dir / "best_model.pt"))
-            results = train.valid_epoch(model, valid_loader)
+            results = train.valid_epoch(model, task, valid_loader)
 
             #  Get model complexity
             n_params = filter(lambda p: p.requires_grad, model.parameters())
@@ -98,7 +100,7 @@ def objective(trial, params, dataset):
             trial.set_user_attr("fit_time", float(round(fit_time, 3)))
             trial.set_user_attr("metrics", results)
 
-            return results["mcc"]
+            return results["optim"]
 
         except torch.cuda.OutOfMemoryError:
             retries += 1
@@ -111,15 +113,20 @@ def objective(trial, params, dataset):
                 raise optuna.exceptions.TrialPruned()
 
 
-def get_dataframe(study):
+def get_dataframe(study, task):
     records = []
     for trial in study.trials:
         record = {"trial": trial.number,
                   "optim": trial.value}
 
-        dummy = {"acc": np.nan, "acc_bal": np.nan, "f1": np.nan,
-                 "prec": np.nan, "rec": np.nan, "mcc": np.nan,
-                 "avg_prec": np.nan, "roc_auc": np.nan}
+        if task == "classification":
+            dummy = {"optim": np.nan, "acc": np.nan, "acc_bal": np.nan,
+                     "f1": np.nan, "prec": np.nan, "rec": np.nan,
+                     "mcc": np.nan, "avg_prec": np.nan, "roc_auc": np.nan}
+        else:
+            dummy = {"optim": np.nan, "r2": np.nan, "rmse": np.nan,
+                     "mae": np.nan, "rto_r2": np.nan, "ccc": np.nan,
+                     "roy_c": np.nan, "roy_c_inv": np.nan, "delta": np.nan}
 
         # Get user attrs
         val_metrics = trial.user_attrs.get("metrics", dummy)
@@ -146,9 +153,10 @@ def main():
         params = yaml.safe_load(stream)
 
     # * Initialize
+    task = name = params["Data"]["task"]
     name = params["Data"]["name"]
     if name.lower() == "none":
-        name = str(uuid.uuid4()).split["-"][0]
+        name = str(uuid.uuid4()).split("-")[0]
         params["Data"]["name"] = name
 
     cwd = Path(os.getcwd())
@@ -180,15 +188,16 @@ def main():
                        n_trials=1)
 
     if study.study_name == name:
-        df = get_dataframe(study)
+        df = get_dataframe(study, task)
         df.to_csv(project_dir / f"{name}.csv", index=False)
 
     # plot parallel plot
-    header = ["optim", "acc", "acc_bal", "f1",
-              "prec", "rec", "mcc", "avg_prec",
-              "roc_auc", "n_params", "fit_time"]
+    header = ["optim", "acc", "acc_bal", "f1", "prec", "rec",
+              "mcc", "avg_prec", "roc_auc", "r2", "rmse",
+              "mae", "rto_r2", "ccc", "roy_c", "roy_c_inv",
+              "delta", "n_params", "fit_time"]
     feats = [col for col in list(df.columns) if col not in header]
-    feats = feats + ["mcc"]
+    feats = feats + ["optim"]
 
     dimensions = []
     for col in feats:
@@ -197,7 +206,7 @@ def main():
                    range=[col_values.min(), col_values.max()])
         dimensions.append(dim)
 
-    fig = go.Figure(data=go.Parcoords(line=dict(color=df["mcc"],
+    fig = go.Figure(data=go.Parcoords(line=dict(color=df["optim"],
                                                 colorscale="viridis",
                                                 showscale=False),
                                       dimensions=dimensions))

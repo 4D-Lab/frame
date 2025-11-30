@@ -23,6 +23,7 @@ def run(params, dataset):
     size = params["Data"].get("batch_size", 32)
     patience = params["Data"].get("patience", 5)
     model_name = params["Data"].get("model", "gat").lower()
+    task = params["Data"].get("task", "classification").lower()
 
     project_dir = params["Data"]["project_dir"]
 
@@ -36,6 +37,7 @@ def run(params, dataset):
     config["feat_size"] = params["Data"]["feat_size"]
     config["edge_dim"] = params["Data"]["edge_dim"]
     config["bce_weight"] = params["Data"]["bce_weight"]
+    config["task"] = task
     params["Data"]["trial"] = None
 
     # * Prepare dataloader
@@ -58,12 +60,12 @@ def run(params, dataset):
     best_model_state = None
     for epoch in tqdm(range(epochs), ncols=120, desc="Training"):
         _ = train.train_epoch(model, optim, schdlr, lossfn, train_loader)
-        val_metrics = train.valid_epoch(model, valid_loader)
+        val_metrics = train.valid_epoch(model, task, valid_loader)
 
         # Early stopping check
-        if val_metrics["mcc"] > best_metric:
+        if val_metrics["optim"] > best_metric:
             patience_counter = 0
-            best_metric = val_metrics["mcc"]
+            best_metric = val_metrics["optim"]
             best_model_state = copy.deepcopy(model.state_dict())
         else:
             patience_counter += 1
@@ -76,9 +78,12 @@ def run(params, dataset):
     model.load_state_dict(best_model_state)
     os.makedirs(project_dir, exist_ok=True)
     torch.save(best_model_state, str(project_dir / "best_model.pt"))
-    results = train.valid_epoch(model, valid_loader)
+    results = train.valid_epoch(model, task, valid_loader)
 
-    print(f"MCC: {results['mcc']}")
+    if task == "classification":
+        print(f"MCC: {results['mcc']}")
+    else:
+        print(f"CCC: {results['ccc']}")
 
 
 def main():
@@ -91,7 +96,7 @@ def main():
     # * Initialize
     name = params["Data"]["name"]
     if name.lower() == "none":
-        name = str(uuid.uuid4()).split["-"][0]
+        name = str(uuid.uuid4()).split("-")[0]
         params["Data"]["name"] = name
 
     cwd = Path(os.getcwd())

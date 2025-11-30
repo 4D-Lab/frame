@@ -32,6 +32,7 @@ def main():
     path_checkpoint = config["path_checkpoint"]
     model_name = config.get("model", "gat").lower()
     batch_size = config.get("batch_size", 64)
+    task = config.get("task", "classification").lower()
 
     # * Initialize
     name = config["name"]
@@ -62,12 +63,16 @@ def main():
     model.load_state_dict(torch.load(path_checkpoint))
     model.eval()
 
+    if task == "classification":
+        mode = "multiclass_classification"
+    else:
+        mode = "regression"
     explainer = Explainer(model=model,
                           algorithm=CaptumExplainer("IntegratedGradients"),
                           explanation_type="model",
                           edge_mask_type="object",
                           node_mask_type="attributes",
-                          model_config=dict(mode="multiclass_classification",
+                          model_config=dict(mode=mode,
                                             task_level="graph",
                                             return_type="raw"))
 
@@ -81,9 +86,14 @@ def main():
                           batch=data.batch)
 
         # * Read prediction values
-        detach = torch.sigmoid(model_out).cpu().detach()
-        pred_lbl = (detach >= 0.5).int()
-        pred = list(torch.ravel(detach).cpu().detach().numpy())
+        if task == "classification":
+            detach = torch.sigmoid(model_out).cpu().detach()
+            pred = list(torch.ravel(detach).cpu().detach().numpy())
+            pred_lbl = (detach >= 0.5).int()
+        else:
+            detach = model_out.cpu().detach()
+            pred = list(torch.ravel(detach).cpu().detach().numpy())
+            pred_lbl = [None] * detach.shape[0]
 
         # * Explain
         explanation = explainer(data.x.float(), data.edge_index,
