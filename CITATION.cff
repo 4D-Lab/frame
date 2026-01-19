@@ -1,0 +1,18 @@
+cff-version: 1.2.0
+title: FRAME - Fragments for Molecular Explanation
+message: >-
+  If you use this software, please cite it using the
+  metadata from this file.
+type: software
+authors:
+  - given-names: Rafael
+    family-names: Lopes Almeida
+    email: rafael.lopes@uef.fi
+    affiliation: UEF
+    orcid: 'https://orcid.org/0000-0002-4003-7030'
+  - given-names: Ina
+    family-names: Pöhner
+    email: ina.pohner@uef.fi
+    affiliation: UEF
+    orcid: 'https://orcid.org/0000-0002-2801-8902'
+repository-code: 'https://github.com/4D-Lab/frame'
