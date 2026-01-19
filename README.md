@@ -2,8 +2,6 @@
   <img height="300" src="https://raw.githubusercontent.com/4D-Lab/logos/refs/heads/main/frame.png"/>
 </p>
 
-______________________________________________________________________
-
 This repository introduces **FRAME**, a framework for learning fragment-based molecular representations to enhance the interpretability of graph neural networks in drug discovery. FRAME represents chemically meaningful fragments as graph nodes and is compatible with several GNN architectures, including GCN, GAT, and AttentiveFP. It also integrates Integrated Gradients to generate more transparent and chemically grounded model explanations.
 
 ## ⚙️ **Installation**
