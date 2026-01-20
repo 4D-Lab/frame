@@ -6,6 +6,7 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 def model_setup(model_name, config):
+    task = config["task"]
     model = select_model(model_name, config)
 
     base_optimizer = torch.optim.Adam(model.parameters(),
@@ -19,8 +20,12 @@ def model_setup(model_name, config):
                                                            T_max=100,
                                                            eta_min=1e-6)
 
-    bce_weight = config["bce_weight"]
-    lossfn = torch.nn.BCEWithLogitsLoss(pos_weight=bce_weight).to(device)
+    if task == "classification":
+        bce_weight = config["bce_weight"]
+        lossfn = torch.nn.BCEWithLogitsLoss(pos_weight=bce_weight).to(device)
+
+    else:
+        lossfn = torch.nn.MSELoss()
 
     return model, optimizer, scheduler, lossfn
 

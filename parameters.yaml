@@ -1,5 +1,6 @@
 Data:
   name: None
+  task: Classification
   path_csv: "path/to/csv_file.csv"
   path_joblib: "path/to/joblib_file.joblib"
   path_checkpoint: "path/to/checkpoint.pt"
