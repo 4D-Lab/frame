@@ -42,7 +42,11 @@ def main():
         raise NotImplementedError("Loader not available")
 
     # * Export
-    bce_weight = (len(dataset.y) - sum(dataset.y)) / sum(dataset.y)
+    task = params["Data"].get("task", "classification").lower()
+    if task == "classification" and sum(dataset.y) > 0:
+        bce_weight = (len(dataset.y) - sum(dataset.y)) / sum(dataset.y)
+    else:
+        bce_weight = torch.tensor(1.0)
     metadata = {"feat_size": dataset.num_node_features,
                 "edge_dim": dataset.num_edge_features,
                 "bce_weight": bce_weight,

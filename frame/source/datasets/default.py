@@ -59,7 +59,7 @@ class MolecularDataset(InMemoryDataset):
         # * Iterate
         data_list = []
         for line in tqdm(dataset, ncols=120, desc="Creating graphs"):
-            line = re.sub(r"\'.*\'", "", line)  # Replace ".*" strings.
+            line = re.sub(r"\'.*?\'", "", line)  # Replace '...' strings.
             line = line.split(",")
 
             # Get label

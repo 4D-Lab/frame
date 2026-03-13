@@ -64,8 +64,8 @@ def objective(trial, params, dataset):
             patience_counter = 0
             best_model_state = None
 
+            start = time.time()
             for epoch in tqdm(range(epochs), ncols=120, desc="Training"):
-                start = time.time()
                 _ = train.train_epoch(model, optim, schdlr,
                                       lossfn, train_loader)
                 val_metrics = train.valid_epoch(model, task, valid_loader)
@@ -82,7 +82,7 @@ def objective(trial, params, dataset):
                 if patience_counter >= patience:
                     break
 
-                fit_time = time.time() - start
+            fit_time = time.time() - start
 
             # Prepare best model
             model.load_state_dict(best_model_state)
@@ -153,7 +153,7 @@ def main():
         params = yaml.safe_load(stream)
 
     # * Initialize
-    task = name = params["Data"]["task"]
+    task = params["Data"]["task"]
     name = params["Data"]["name"]
     if name.lower() == "none":
         name = str(uuid.uuid4()).split("-")[0]
