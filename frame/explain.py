@@ -60,9 +60,7 @@ def main():
 
     # * Get checkpoint and prepare Explainer
     model = models.select_model(model_name, tune)
-    model.load_state_dict(torch.load(path_checkpoint,
-                                     map_location=device,
-                                     weights_only=True))
+    model.load_state_dict(torch.load(path_checkpoint))
     model.eval()
 
     if task == "classification":
@@ -79,7 +77,7 @@ def main():
                                             return_type="raw"))
 
     for data in tqdm(dataloader, ncols=120, desc="Explaining"):
-        data = data.to(device)
+        data.to(device)
 
         # * Make predictions
         model_out = model(x=data.x.float(),
@@ -89,12 +87,15 @@ def main():
 
         # * Read prediction values
         if task == "classification":
-            detach = torch.sigmoid(model_out).cpu().detach()
-            pred = list(torch.ravel(detach).cpu().detach().numpy())
+            logit = model_out.cpu().detach()
+            logit_list = list(torch.ravel(logit).numpy())
+            detach = torch.sigmoid(logit)
+            pred = list(torch.ravel(detach).numpy())
             pred_lbl = (detach >= 0.5).int()
         else:
             detach = model_out.cpu().detach()
-            pred = list(torch.ravel(detach).cpu().detach().numpy())
+            pred = list(torch.ravel(detach).numpy())
+            logit_list = pred
             pred_lbl = [None] * detach.shape[0]
 
         # * Explain
@@ -102,6 +103,7 @@ def main():
                                 edge_attr=data.edge_attr.float(),
                                 batch=data.batch)
 
-        mol_exp = explain.MolExplain(explanation, pred, pred_lbl, loader, out)
+        mol_exp = explain.MolExplain(explanation, logit_list, pred, pred_lbl,
+                                     loader, out)
         mol_exp.retrieve_info(data)
         mol_exp.plot_explanations(data)
