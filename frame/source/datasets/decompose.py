@@ -59,7 +59,7 @@ class DecomposeDataset(InMemoryDataset):
         # * Iterate
         data_list = []
         for line in tqdm(dataset, ncols=120, desc="Creating graphs"):
-            line = re.sub(r"\'.*\'", "", line)  # Replace ".*" strings.
+            line = re.sub(r"\'.*?\'", "", line)  # Replace '...' strings.
             line = line.split(",")
 
             # Get label
@@ -206,7 +206,7 @@ def _gen_features(smiles):
     #         [single, double, triple, aromatic, conjugation, ring] + stereo)
 
     #     edge_attrs += [edge_attr, edge_attr]
-    #     frag_edge_attr = torch.stack(edge_attrs, dim=0)
+    # frag_edge_attr = torch.stack(edge_attrs, dim=0)
 
     agg_x = torch.sum(frag_x, dim=0)
     return agg_x

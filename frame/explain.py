@@ -60,7 +60,9 @@ def main():
 
     # * Get checkpoint and prepare Explainer
     model = models.select_model(model_name, tune)
-    model.load_state_dict(torch.load(path_checkpoint))
+    model.load_state_dict(torch.load(path_checkpoint,
+                                     map_location=device,
+                                     weights_only=True))
     model.eval()
 
     if task == "classification":
@@ -77,7 +79,7 @@ def main():
                                             return_type="raw"))
 
     for data in tqdm(dataloader, ncols=120, desc="Explaining"):
-        data.to(device)
+        data = data.to(device)
 
         # * Make predictions
         model_out = model(x=data.x.float(),

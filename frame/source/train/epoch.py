@@ -26,12 +26,12 @@ def train_epoch(model, optim, scheduler, lossfn, loader):
     model = model.train()
     for batch in loader:
         batch = batch.to(device)
-        optim.zero_grad(batch)
+        optim.zero_grad()
 
         # * Make predictions
         out = model(x=batch.x.float(),
                     edge_index=batch.edge_index,
-                    edge_attr=batch.edge_attr,
+                    edge_attr=batch.edge_attr.float(),
                     batch=batch.batch)
 
         # * Compute loss
@@ -64,7 +64,7 @@ def valid_epoch(model, task, loader):
         # * Make predictions
         out = model(x=batch.x.float(),
                     edge_index=batch.edge_index,
-                    edge_attr=batch.edge_attr,
+                    edge_attr=batch.edge_attr.float(),
                     batch=batch.batch)
 
         # * Read prediction values
