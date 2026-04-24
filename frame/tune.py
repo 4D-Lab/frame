@@ -31,6 +31,7 @@ def objective(trial, params, dataset):
     model_name = params["Data"].get("model", "gat").lower()
     max_retries = params["Data"].get("max_retries", 5)
     task = params["Data"].get("task", "classification").lower()
+    grad_clip = params["Data"].get("grad_clip_norm", 1.0)
 
     project_dir = params["Data"]["project_dir"]
 
@@ -41,6 +42,7 @@ def objective(trial, params, dataset):
     config["bce_weight"] = params["Data"]["bce_weight"]
     config["task"] = task
     params["Data"]["trial"] = trial
+    size = int(config.get("batch_size", size))
 
     # * Prepare dataloader
     train_data = [data for data in dataset if data.set == "train"]
@@ -54,7 +56,8 @@ def objective(trial, params, dataset):
                               persistent_workers=True)
 
     # * Get model
-    model, optim, schdlr, lossfn = models.model_setup(model_name, config)
+    model, optim, schdlr, lossfn = models.model_setup(model_name, config,
+                                                      epochs=epochs)
 
     # * Train
     retries = 0
@@ -66,9 +69,10 @@ def objective(trial, params, dataset):
 
             start = time.time()
             for epoch in tqdm(range(epochs), ncols=120, desc="Training"):
-                _ = train.train_epoch(model, optim, schdlr,
-                                      lossfn, train_loader)
+                _ = train.train_epoch(model, optim, lossfn, train_loader,
+                                      grad_clip_norm=grad_clip)
                 val_metrics = train.valid_epoch(model, task, valid_loader)
+                schdlr.step()
 
                 # Early stopping check
                 if val_metrics["optim"] > best_metric:

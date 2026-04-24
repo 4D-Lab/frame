@@ -10,6 +10,7 @@ Data:
   batch_size: 128
   patience: 5
   loader: default  # "default" or "decompose"
+  grad_clip_norm: 1.0
 
 Tune:
   hidden_channels:
@@ -24,10 +25,20 @@ Tune:
   dropout_rate:
     min: 0.1
     max: 0.6
+  pool:
+    choices: [mean, add, max]
+  warmup_epochs:
+    value: 0
+  num_timesteps:
+    value: 2
   learning_rate:
-    value: 1e-3
+    min: 1e-4
+    max: 5e-3
+    log: true
   weight_decay:
-    value: 1e-5
+    min: 1e-6
+    max: 1e-3
+    log: true
   beta_1:
     value: 0.9
   beta_2:

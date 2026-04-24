@@ -17,28 +17,24 @@ device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
 def run(params, dataset):
-    # Get static data from parameters
     epochs = params["Data"].get("epochs", 10)
     workers = params["Data"].get("workers", 4)
     size = params["Data"].get("batch_size", 32)
     patience = params["Data"].get("patience", 5)
     model_name = params["Data"].get("model", "gat").lower()
     task = params["Data"].get("task", "classification").lower()
+    grad_clip = params["Data"].get("grad_clip_norm", 1.0)
 
     project_dir = params["Data"]["project_dir"]
 
-    # Get values
-    config = {}
-    for name, bounds in params["Tune"].items():
-        if isinstance(bounds["value"], int):
-            config[name] = int(bounds["value"])
-        else:
-            config[name] = float(bounds["value"])
+    config = models.tune_fixed(params)
     config["feat_size"] = params["Data"]["feat_size"]
     config["edge_dim"] = params["Data"]["edge_dim"]
     config["bce_weight"] = params["Data"]["bce_weight"]
     config["task"] = task
     params["Data"]["trial"] = None
+
+    size = int(config.get("batch_size", size))
 
     # * Prepare dataloader
     train_data = [data for data in dataset if data.set == "train"]
@@ -52,15 +48,18 @@ def run(params, dataset):
                               persistent_workers=True)
 
     # * Get model
-    model, optim, schdlr, lossfn = models.model_setup(model_name, config)
+    model, optim, schdlr, lossfn = models.model_setup(model_name, config,
+                                                      epochs=epochs)
 
     # * Train
     best_metric = -1.0
     patience_counter = 0
     best_model_state = None
     for epoch in tqdm(range(epochs), ncols=120, desc="Training"):
-        _ = train.train_epoch(model, optim, schdlr, lossfn, train_loader)
+        _ = train.train_epoch(model, optim, lossfn, train_loader,
+                              grad_clip_norm=grad_clip)
         val_metrics = train.valid_epoch(model, task, valid_loader)
+        schdlr.step()
 
         # Early stopping check
         if val_metrics["optim"] > best_metric:

@@ -8,18 +8,24 @@ import torch.backends.cudnn as cudnn
 from frame.source.train import metrics as reg_metrics
 
 
-random.seed(8)
-np.random.seed(8)
-torch.manual_seed(8)
-if torch.cuda.is_available():
-    torch.cuda.manual_seed(8)
-    torch.cuda.manual_seed_all(8)
 cudnn.deterministic = True
 cudnn.benchmark = False
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
-def train_epoch(model, optim, scheduler, lossfn, loader):
+def set_seed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+
+
+set_seed(8)
+
+
+def train_epoch(model, optim, lossfn, loader, grad_clip_norm=None):
     step = 1
     running_loss = 0.0
 
@@ -39,6 +45,10 @@ def train_epoch(model, optim, scheduler, lossfn, loader):
         loss = lossfn(torch.squeeze(out), torch.squeeze(true))
         loss.backward()
 
+        if grad_clip_norm is not None and grad_clip_norm > 0:
+            torch.nn.utils.clip_grad_norm_(model.parameters(),
+                                           max_norm=grad_clip_norm)
+
         # * Update gradients
         optim.step()
 
@@ -46,7 +56,6 @@ def train_epoch(model, optim, scheduler, lossfn, loader):
         running_loss += loss.detach().item()
         step += 1
 
-    scheduler.step()
     return running_loss / step
 
 
