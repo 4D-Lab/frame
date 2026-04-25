@@ -11,6 +11,10 @@ Data:
   patience: 5
   loader: default  # "default" or "decompose"
   grad_clip_norm: 1.0
+  drop_edge_p: 0.0  # train-time edge drop probability
+  mask_feat_p: 0.0  # train-time node feature mask probability
+  regression_loss: mse  # mse | huber | smooth_l1
+  huber_delta: 1.0  # threshold for Huber / SmoothL1
 
 Tune:
   hidden_channels:

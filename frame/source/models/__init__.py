@@ -41,7 +41,21 @@ def model_setup(model_name, config, epochs=100):
         lossfn = torch.nn.BCEWithLogitsLoss(pos_weight=bce_weight).to(device)
 
     else:
-        lossfn = torch.nn.MSELoss()
+        reg_loss = str(config.get("regression_loss", "mse")).lower()
+        delta = float(config.get("huber_delta", 1.0))
+
+        if reg_loss == "mse":
+            lossfn = torch.nn.MSELoss()
+
+        elif reg_loss == "huber":
+            lossfn = torch.nn.HuberLoss(delta=delta)
+
+        elif reg_loss == "smooth_l1":
+            lossfn = torch.nn.SmoothL1Loss(beta=delta)
+
+        else:
+            raise ValueError(f"Unknown regression_loss: {reg_loss}. "
+                             "Choose from mse, huber, smooth_l1.")
 
     return model, optimizer, scheduler, lossfn
 

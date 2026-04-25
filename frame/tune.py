@@ -32,6 +32,8 @@ def objective(trial, params, dataset):
     max_retries = params["Data"].get("max_retries", 5)
     task = params["Data"].get("task", "classification").lower()
     grad_clip = params["Data"].get("grad_clip_norm", 1.0)
+    drop_edge_p = float(params["Data"].get("drop_edge_p", 0.0))
+    mask_feat_p = float(params["Data"].get("mask_feat_p", 0.0))
 
     project_dir = params["Data"]["project_dir"]
 
@@ -41,6 +43,8 @@ def objective(trial, params, dataset):
     config["edge_dim"] = params["Data"]["edge_dim"]
     config["bce_weight"] = params["Data"]["bce_weight"]
     config["task"] = task
+    config["regression_loss"] = params["Data"].get("regression_loss", "mse")
+    config["huber_delta"] = params["Data"].get("huber_delta", 1.0)
     params["Data"]["trial"] = trial
     size = int(config.get("batch_size", size))
 
@@ -70,7 +74,9 @@ def objective(trial, params, dataset):
             start = time.time()
             for epoch in tqdm(range(epochs), ncols=120, desc="Training"):
                 _ = train.train_epoch(model, optim, lossfn, train_loader,
-                                      grad_clip_norm=grad_clip)
+                                      grad_clip_norm=grad_clip,
+                                      drop_edge_p=drop_edge_p,
+                                      mask_feat_p=mask_feat_p)
                 val_metrics = train.valid_epoch(model, task, valid_loader)
                 schdlr.step()
 

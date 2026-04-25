@@ -4,6 +4,7 @@ import torch
 import numpy as np
 from sklearn import metrics
 import torch.backends.cudnn as cudnn
+from torch_geometric.utils import dropout_edge
 
 from frame.source.train import metrics as reg_metrics
 
@@ -25,7 +26,8 @@ def set_seed(seed):
 set_seed(8)
 
 
-def train_epoch(model, optim, lossfn, loader, grad_clip_norm=None):
+def train_epoch(model, optim, lossfn, loader, grad_clip_norm=None,
+                drop_edge_p=0.0, mask_feat_p=0.0):
     step = 1
     running_loss = 0.0
 
@@ -34,10 +36,23 @@ def train_epoch(model, optim, lossfn, loader, grad_clip_norm=None):
         batch = batch.to(device)
         optim.zero_grad()
 
+        x = batch.x.float()
+        edge_index = batch.edge_index
+        edge_attr = batch.edge_attr.float()
+
+        if drop_edge_p and drop_edge_p > 0 and edge_index.numel() > 0:
+            edge_index, edge_mask = dropout_edge(edge_index, p=drop_edge_p,
+                                                 force_undirected=True)
+            edge_attr = edge_attr[edge_mask]
+
+        if mask_feat_p and mask_feat_p > 0:
+            keep = (torch.rand_like(x) >= mask_feat_p).float()
+            x = x * keep
+
         # * Make predictions
-        out = model(x=batch.x.float(),
-                    edge_index=batch.edge_index,
-                    edge_attr=batch.edge_attr.float(),
+        out = model(x=x,
+                    edge_index=edge_index,
+                    edge_attr=edge_attr,
                     batch=batch.batch)
 
         # * Compute loss
