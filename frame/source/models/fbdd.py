@@ -92,6 +92,7 @@ class GNN_FBDD(torch.nn.Module):
                                   nn.Linear(hidden, 1))
 
     def forward(self, x, edge_index, edge_attr, batch):
+        self.readout.lstm.flatten_parameters()
         h = self.node_embed(x)
         e = self.edge_embed(edge_attr)
 
