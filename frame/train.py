@@ -1,5 +1,5 @@
 import os
-import copy
+import json
 import uuid
 import shutil
 import argparse
@@ -8,12 +8,32 @@ from pathlib import Path
 import yaml
 import torch
 import joblib
-from tqdm import tqdm
+import numpy as np
 from torch_geometric.loader import DataLoader
 
-from frame.source import models, train
+from frame.source import models
+from frame.source.train import runner
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
+
+
+def _report_seed_stats(task, per_seed_results, project_dir):
+    """Print mean ± std across seeds and dump per-seed metrics to JSON."""
+    headline = "mcc" if task == "classification" else "ccc"
+    values = [float(r[headline]) for r in per_seed_results]
+    mean = float(np.mean(values))
+    std = float(np.std(values))
+
+    print(f"{headline.upper()}: {mean:.3f} ± {std:.3f} "
+          f"(per-seed: {[round(v, 3) for v in values]})")
+
+    summary = {"headline_metric": headline,
+               "mean": round(mean, 4),
+               "std": round(std, 4),
+               "per_seed": values,
+               "per_seed_full": per_seed_results}
+    with open(project_dir / "seed_metrics.json", "w") as fh:
+        json.dump(summary, fh, indent=2)
 
 
 def run(params, dataset):
@@ -26,6 +46,9 @@ def run(params, dataset):
     grad_clip = params["Data"].get("grad_clip_norm", 1.0)
     drop_edge_p = float(params["Data"].get("drop_edge_p", 0.0))
     mask_feat_p = float(params["Data"].get("mask_feat_p", 0.0))
+    seeds = params["Data"].get("train_seeds", [8])
+    if not seeds:
+        raise ValueError("train_seeds must contain at least one seed")
 
     project_dir = params["Data"]["project_dir"]
 
@@ -40,55 +63,35 @@ def run(params, dataset):
 
     size = int(config.get("batch_size", size))
 
-    # * Prepare dataloader
+    # * Prepare valid loader (shared across seeds; train loader is built
+    #   inside the runner so its shuffle is pinned to each seed)
     train_data = [data for data in dataset if data.set == "train"]
-    train_loader = DataLoader(train_data, batch_size=size,
-                              shuffle=True, num_workers=workers,
-                              persistent_workers=True)
-
     valid_data = [data for data in dataset if data.set == "valid"]
     valid_loader = DataLoader(valid_data, batch_size=size,
                               num_workers=workers,
                               persistent_workers=True)
 
-    # * Get model
-    model, optim, schdlr, lossfn = models.model_setup(model_name, config,
-                                                      epochs=epochs)
+    # * Train one model per seed, keep the best-seed checkpoint
+    per_seed_results = []
+    best_state = None
+    best_optim = -float("inf")
+    for seed in seeds:
+        state, results, _, _ = runner.train_one_seed(int(seed), train_data,
+                                                     valid_loader,
+                                                     model_name, config,
+                                                     epochs, patience, task,
+                                                     grad_clip, drop_edge_p,
+                                                     mask_feat_p, size,
+                                                     workers)
+        per_seed_results.append(results)
+        if results["optim"] > best_optim:
+            best_optim = float(results["optim"])
+            best_state = state
 
-    # * Train
-    best_metric = -1.0
-    patience_counter = 0
-    best_model_state = None
-    for epoch in tqdm(range(epochs), ncols=120, desc="Training"):
-        _ = train.train_epoch(model, optim, lossfn, train_loader,
-                              grad_clip_norm=grad_clip,
-                              drop_edge_p=drop_edge_p,
-                              mask_feat_p=mask_feat_p)
-        val_metrics = train.valid_epoch(model, task, valid_loader)
-        schdlr.step()
-
-        # Early stopping check
-        if val_metrics["optim"] > best_metric:
-            patience_counter = 0
-            best_metric = val_metrics["optim"]
-            best_model_state = copy.deepcopy(model.state_dict())
-        else:
-            patience_counter += 1
-
-        # Check if we should stop early
-        if patience_counter >= patience:
-            break
-
-    # Prepare best model
-    model.load_state_dict(best_model_state)
     os.makedirs(project_dir, exist_ok=True)
-    torch.save(best_model_state, str(project_dir / "best_model.pt"))
-    results = train.valid_epoch(model, task, valid_loader)
+    torch.save(best_state, str(project_dir / "best_model.pt"))
 
-    if task == "classification":
-        print(f"MCC: {results['mcc']}")
-    else:
-        print(f"CCC: {results['ccc']}")
+    _report_seed_stats(task, per_seed_results, project_dir)
 
 
 def main():

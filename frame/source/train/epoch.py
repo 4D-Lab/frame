@@ -23,9 +23,6 @@ def set_seed(seed):
         torch.cuda.manual_seed_all(seed)
 
 
-set_seed(8)
-
-
 def train_epoch(model, optim, lossfn, loader, grad_clip_norm=None,
                 drop_edge_p=0.0, mask_feat_p=0.0):
     step = 1

@@ -1,6 +1,5 @@
 import os
 import time
-import copy
 import uuid
 import shutil
 import argparse
@@ -12,14 +11,40 @@ import joblib
 import optuna
 import numpy as np
 import pandas as pd
-from tqdm import tqdm
 import plotly.graph_objects as go
 from torch_geometric.loader import DataLoader
 
-from frame.source import models, train, utils
+from frame.source import models, utils
+from frame.source.train import runner
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 logger = utils.get_logger("TUNE", log_level="INFO")
+
+
+def _aggregate_seed_metrics(per_seed_results):
+    """Mean each per-seed validation-metric dict, rounded to 3 dp."""
+    keys = per_seed_results[0].keys()
+    return {key: round(float(np.mean([r[key] for r in per_seed_results])), 3)
+            for key in keys}
+
+
+def _record_trial(trial, project_dir, best_state, per_seed_optim,
+                  per_seed_results, total_time, n_params, best_seed):
+    """Persist best-seed checkpoint and write seed-aware trial attrs."""
+    trial_dir = project_dir / f"trial_{trial.number}"
+    os.makedirs(trial_dir, exist_ok=True)
+    torch.save(best_state, str(trial_dir / "best_model.pt"))
+
+    trial.set_user_attr("n_params", int(n_params))
+    trial.set_user_attr("fit_time", float(round(total_time, 3)))
+    trial.set_user_attr("metrics", _aggregate_seed_metrics(per_seed_results))
+    trial.set_user_attr("optim_mean",
+                        round(float(np.mean(per_seed_optim)), 4))
+    trial.set_user_attr("optim_std",
+                        round(float(np.std(per_seed_optim)), 4))
+    trial.set_user_attr("optim_per_seed",
+                        [round(float(v), 4) for v in per_seed_optim])
+    trial.set_user_attr("best_seed", int(best_seed))
 
 
 def objective(trial, params, dataset):
@@ -34,6 +59,9 @@ def objective(trial, params, dataset):
     grad_clip = params["Data"].get("grad_clip_norm", 1.0)
     drop_edge_p = float(params["Data"].get("drop_edge_p", 0.0))
     mask_feat_p = float(params["Data"].get("mask_feat_p", 0.0))
+    seeds = params["Data"].get("tune_seeds", [8])
+    if not seeds:
+        raise ValueError("tune_seeds must contain at least one seed")
 
     project_dir = params["Data"]["project_dir"]
 
@@ -48,69 +76,42 @@ def objective(trial, params, dataset):
     params["Data"]["trial"] = trial
     size = int(config.get("batch_size", size))
 
-    # * Prepare dataloader
+    # * Prepare dataloader (valid is shared across seeds; train is rebuilt
+    #   inside the runner so its shuffle is pinned to the seed)
     train_data = [data for data in dataset if data.set == "train"]
-    train_loader = DataLoader(train_data, batch_size=size,
-                              shuffle=True, num_workers=workers,
-                              persistent_workers=True)
-
     valid_data = [data for data in dataset if data.set == "valid"]
     valid_loader = DataLoader(valid_data, batch_size=size,
                               num_workers=workers,
                               persistent_workers=True)
 
-    # * Get model
-    model, optim, schdlr, lossfn = models.model_setup(model_name, config,
-                                                      epochs=epochs)
-
-    # * Train
+    # * Train one model per seed and aggregate
     retries = 0
     while retries < max_retries:
         try:
-            best_metric = -1000
-            patience_counter = 0
-            best_model_state = None
+            per_seed_optim = []
+            per_seed_results = []
+            best_state = None
+            best_optim = -float("inf")
+            best_seed = int(seeds[0])
+            total_time = 0.0
+            n_params = 0
+            for seed in seeds:
+                state, results, fit_time, n_params = runner.train_one_seed(
+                    int(seed), train_data, valid_loader, model_name,
+                    config, epochs, patience, task, grad_clip,
+                    drop_edge_p, mask_feat_p, size, workers)
+                per_seed_optim.append(float(results["optim"]))
+                per_seed_results.append(results)
+                total_time += fit_time
+                if results["optim"] > best_optim:
+                    best_optim = float(results["optim"])
+                    best_state = state
+                    best_seed = int(seed)
 
-            start = time.time()
-            for epoch in tqdm(range(epochs), ncols=120, desc="Training"):
-                _ = train.train_epoch(model, optim, lossfn, train_loader,
-                                      grad_clip_norm=grad_clip,
-                                      drop_edge_p=drop_edge_p,
-                                      mask_feat_p=mask_feat_p)
-                val_metrics = train.valid_epoch(model, task, valid_loader)
-                schdlr.step()
-
-                # Early stopping check
-                if val_metrics["optim"] > best_metric:
-                    patience_counter = 0
-                    best_metric = val_metrics["optim"]
-                    best_model_state = copy.deepcopy(model.state_dict())
-                else:
-                    patience_counter += 1
-
-                # Check if we should stop early
-                if patience_counter >= patience:
-                    break
-
-            fit_time = time.time() - start
-
-            # Prepare best model
-            model.load_state_dict(best_model_state)
-            trial_dir = project_dir / f"trial_{trial.number}"
-            os.makedirs(trial_dir, exist_ok=True)
-            torch.save(best_model_state, str(trial_dir / "best_model.pt"))
-            results = train.valid_epoch(model, task, valid_loader)
-
-            #  Get model complexity
-            n_params = filter(lambda p: p.requires_grad, model.parameters())
-            sum_params = sum([np.prod(p.size()) for p in n_params])
-            trial.set_user_attr("n_params", int(sum_params))
-
-            # Report time and metrics
-            trial.set_user_attr("fit_time", float(round(fit_time, 3)))
-            trial.set_user_attr("metrics", results)
-
-            return results["optim"]
+            _record_trial(trial, project_dir, best_state, per_seed_optim,
+                          per_seed_results, total_time, n_params,
+                          best_seed)
+            return float(np.mean(per_seed_optim))
 
         except torch.cuda.OutOfMemoryError:
             retries += 1
@@ -142,12 +143,16 @@ def get_dataframe(study, task):
         val_metrics = trial.user_attrs.get("metrics", dummy)
         n_params = trial.user_attrs.get("n_params", np.nan)
         fit_time = trial.user_attrs.get("fit_time", np.nan)
+        optim_std = trial.user_attrs.get("optim_std", np.nan)
+        best_seed = trial.user_attrs.get("best_seed", np.nan)
 
         # Update dict
         record.update(val_metrics)
         record.update(trial.params)
         record.update({"n_params": n_params})
         record.update({"fit_time": fit_time})
+        record.update({"optim_std": optim_std})
+        record.update({"best_seed": best_seed})
 
         records.append(record)
 
@@ -205,7 +210,8 @@ def main():
     header = ["optim", "acc", "acc_bal", "f1", "prec", "rec",
               "mcc", "avg_prec", "roc_auc", "r2", "rmse",
               "mae", "rto_r2", "ccc", "roy_c", "roy_c_inv",
-              "delta", "n_params", "fit_time"]
+              "delta", "n_params", "fit_time", "optim_std",
+              "best_seed"]
     feats = [col for col in list(df.columns) if col not in header]
     feats = feats + ["optim"]
 

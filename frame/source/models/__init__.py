@@ -4,7 +4,7 @@ from torch.optim.lr_scheduler import (LinearLR,
                                       CosineAnnealingLR)
 
 from frame.source import train
-from frame.source.models import pyg_models
+from frame.source.models import pyg_models, fbdd
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
@@ -71,6 +71,8 @@ def select_model(model_name, config):
         model = pyg_models.GNN_GIN(config).to(device)
     elif model_name == "gcn":
         model = pyg_models.GNN_GCN(config).to(device)
+    elif model_name == "fbdd":
+        model = fbdd.GNN_FBDD(config).to(device)
     else:
         raise NotImplementedError("Model not available")
 

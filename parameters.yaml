@@ -6,7 +6,7 @@ Data:
   path_checkpoint: "path/to/checkpoint.pt"
   trials: 2
   epochs: 10
-  model: gat # gcn, gat, attentive
+  model: gat # gcn, gat, gin, sage, attentive, fbdd
   batch_size: 128
   patience: 5
   loader: default  # "default" or "decompose"
@@ -15,6 +15,8 @@ Data:
   mask_feat_p: 0.0  # train-time node feature mask probability
   regression_loss: mse  # mse | huber | smooth_l1
   huber_delta: 1.0  # threshold for Huber / SmoothL1
+  tune_seeds: [13, 42, 73]  # seeds averaged per Optuna trial
+  train_seeds: [13, 42, 73, 101, 202]  # seeds for final retraining
 
 Tune:
   hidden_channels:
@@ -35,17 +37,20 @@ Tune:
     value: 0
   num_timesteps:
     value: 2
+  set2set_steps:
+    value: 3
+
   learning_rate:
-    min: 1e-4
-    max: 5e-3
+    min: 1.0e-4
+    max: 5.0e-3
     log: true
   weight_decay:
-    min: 1e-6
-    max: 1e-3
+    min: 1.0e-6
+    max: 1.0e-3
     log: true
   beta_1:
     value: 0.9
   beta_2:
     value: 0.999
   eps:
-    value: 1e-8
+    value: 1.0e-8
