@@ -28,8 +28,8 @@ class GNN_FBDD(torch.nn.Module):
         config: Hyperparameter dictionary. Recognised keys:
             ``feat_size`` (int): node feature dimension.
             ``edge_dim`` (int): edge feature dimension.
-            ``hidden_channels`` (int): hidden embedding size; must be
-                divisible by ``heads``.
+            ``hidden_channels`` (int): hidden embedding size. Rounded
+                down to the nearest multiple of ``heads``.
             ``num_layers`` (int): number of GINEConv layers.
             ``dropout_rate`` (float): dropout probability.
             ``heads`` (int): heads for the TransformerConv.
@@ -37,7 +37,7 @@ class GNN_FBDD(torch.nn.Module):
 
     Raises:
         ValueError: If ``feat_size`` or ``edge_dim`` is missing, or if
-            ``hidden_channels`` is not divisible by ``heads``.
+            ``heads`` is less than 1.
 
     Example:
         >>> model = GNN_FBDD({"feat_size": 33, "edge_dim": 10})
@@ -58,10 +58,9 @@ class GNN_FBDD(torch.nn.Module):
             raise ValueError("config['feat_size'] is required")
         if edge_dim is None:
             raise ValueError("config['edge_dim'] is required")
-        if hidden % heads != 0:
-            raise ValueError("hidden_channels must be divisible by "
-                             f"heads; got hidden={hidden}, "
-                             f"heads={heads}.")
+        if heads < 1:
+            raise ValueError(f"heads must be >= 1; got {heads}.")
+        hidden = max(heads, (hidden // heads) * heads)
 
         self.dropout_p = dropout
         self.node_embed = nn.Linear(in_channels, hidden)
