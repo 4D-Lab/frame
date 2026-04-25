@@ -4,17 +4,19 @@ Data:
   path_csv: "path/to/csv_file.csv"
   path_joblib: "path/to/joblib_file.joblib"
   path_checkpoint: "path/to/checkpoint.pt"
-  trials: 2
-  epochs: 10
-  model: gat # gcn, gat, gin, sage, attentive, fbdd
+
+  trials: 50
+  epochs: 50
+  model: gat # gcn | gat | gin | sage | attentive | fbdd
   batch_size: 128
-  patience: 5
-  loader: default  # "default" or "decompose"
+  patience: 15
+  loader: default  # default | decompose
   grad_clip_norm: 1.0
   drop_edge_p: 0.0  # train-time edge drop probability
   mask_feat_p: 0.0  # train-time node feature mask probability
   regression_loss: mse  # mse | huber | smooth_l1
   huber_delta: 1.0  # threshold for Huber / SmoothL1
+  warmup_epochs: 0  # linear LR warmup epochs before cosine decay
   tune_seeds: [13, 42, 73]  # seeds averaged per Optuna trial
   train_seeds: [13, 42, 73, 101, 202]  # seeds for final retraining
 
@@ -22,35 +24,51 @@ Tune:
   hidden_channels:
     min: 32
     max: 512
+    # value: 16
   num_layers:
     min: 1
-    max: 3
-  heads:
-    min: 1
-    max: 3
+    max: 4
+    # value: 2
   dropout_rate:
     min: 0.1
     max: 0.6
+    # value: 0.3
+  timesteps:
+    min: 1
+    max: 4
+    # value: 2
+  set2set_steps:
+    min: 1
+    max: 4
+    # value: 3
+  heads:
+    min: 1
+    max: 4
+    # value: 3
   pool:
     choices: [mean, add, max]
-  warmup_epochs:
-    value: 0
-  num_timesteps:
-    value: 2
-  set2set_steps:
-    value: 3
+    # value: mean
 
   learning_rate:
-    min: 1.0e-4
-    max: 5.0e-3
-    log: true
+    # min: 1.0e-4
+    # max: 5.0e-3
+    # log: true
+    value: 1.0e-3
   weight_decay:
-    min: 1.0e-6
-    max: 1.0e-3
-    log: true
+    # min: 1.0e-6
+    # max: 1.0e-3
+    # log: true
+    value: 1.0e-5
   beta_1:
+    # min: 0.5
+    # max: 0.9999999
     value: 0.9
   beta_2:
+    # min: 0.5
+    # max: 0.9999999
     value: 0.999
   eps:
+    # min: 1.0e-9
+    # max: 1.0e-7
+    # log: true
     value: 1.0e-8
