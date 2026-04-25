@@ -58,6 +58,7 @@ venv.bak/
 *.pdf
 *.md
 *.json
+*.lock
 
 # Dirs
 *temp*
