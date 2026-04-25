@@ -25,7 +25,7 @@ def reg_through_origin(y_true, y_pred):
     rto_r2 = rto.score(pred, true)
     slope = regression.coef_
 
-    return rto_r2, float(slope)
+    return rto_r2, float(np.asarray(slope).item())
 
 
 def concordance_correlation(y_true, y_pred):
