@@ -4,28 +4,30 @@
 
 This repository introduces **FRAME**, a framework for learning fragment-based molecular representations to enhance the interpretability of graph neural networks in drug discovery. FRAME represents chemically meaningful fragments as graph nodes and is compatible with several GNN architectures, including GCN, GAT, and AttentiveFP. It also integrates Integrated Gradients to generate more transparent and chemically grounded model explanations.
 
-## ⚙️ **Installation**
-1. Clone the repo:
+## Installation
 
-2. Create and activate your `virtualenv` with Python 3.12, for example as described [here](https://docs.python.org/3/library/venv.html).
+FRAME is installed with [`uv`](https://docs.astral.sh/uv/), which picks the right `torch` wheels (CUDA 12.8) for you.
 
-3. Install [PyTorch **2.8.0**](https://pytorch.org/get-started/locally/) using:
-
-    ```console
-    pip install torch==2.8.0 -f https://download.pytorch.org/whl/cu129
-    ```
-
-4. Install FRAME using:
+1. Install [`uv`](https://docs.astral.sh/uv/getting-started/installation/) if you don't already have it.
+2. Clone the repo.
+3. From the project root, run:
 
     ```console
-    python -m pip install .
-    ```
-    or for development:
-    ```console
-    python -m pip install -e .
+    uv sync
     ```
 
-## 📂 Dataset Requirements
+    That creates a `.venv/` with Python 3.11+ and installs PocketGraph along with everything it depends on. You can use prefix commands with `uv run` (e.g. `uv run frame_tune -c parameters.yaml`).
+
+
+    To install the `frame_*` commands globally (isolated in their own environment, available on your `PATH` without having to activate a venv), use `uv tool install`:
+
+    ```console
+    uv tool install .
+    ```
+
+If you'd rather not use `uv`, you can install the dependencies declared in [pyproject.toml](pyproject.toml) directly with `pip` in a Python 3.11+ environment.
+
+## Dataset Requirements
 The CSV file used in FRAME **must** include the following columns:
 
 - **`id`** – A unique identifier for each entry.  
@@ -39,7 +41,7 @@ The CSV file used in FRAME **must** include the following columns:
 Please ensure that all entries follow this structure so the dataset can be correctly loaded and processed by the pipeline.
 
 
-## 📄 Configuration
+## Configuration
 All model parameters and runtime settings are defined in a YAML configuration file.  
 An example file, [`parameters.yaml`](./parameters.yaml), is provided.
 
@@ -62,7 +64,7 @@ Tune:
     value: 64
 ```
 
-## 🔎 **Usage**
+## **Usage**
 All entry points accept a `-c/--config` parameter pointing to the YAML config file.
 
 - Generate a processed dataset:
