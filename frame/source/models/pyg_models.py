@@ -99,6 +99,12 @@ class GNN_GAT(torch.nn.Module):
         v2 = config.get("att_v2", True)
         heads = config.get("heads", 1)
 
+        rounded = (hidden_channels // heads) * heads
+        if rounded == 0:
+            raise ValueError(f"hidden_channels ({hidden_channels}) must be "
+                             f">= heads ({heads}).")
+        hidden_channels = rounded
+
         self.pool = _resolve_pool(config.get("pool", "mean"))
         self.model = GAT(in_channels=in_channels,
                          hidden_channels=hidden_channels,

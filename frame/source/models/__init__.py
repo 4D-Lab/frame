@@ -115,4 +115,16 @@ def optuna_suggest(params, trial):
         else:
             configs[name] = _cast_value(bounds["value"])
 
+    # Round hidden_channels to match n_heads, and log
+    model_name = str(params["Data"].get("model", "")).lower()
+    if (model_name == "gat"):
+        heads = int(configs["heads"])
+        original = int(configs["hidden_channels"])
+        rounded = (original // heads) * heads
+
+        if rounded != original:
+            configs["hidden_channels"] = rounded
+            trial.set_user_attr("hidden_channels_suggested", original)
+            trial.set_user_attr("hidden_channels_used", rounded)
+
     return configs
