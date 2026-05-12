@@ -4,22 +4,27 @@ import torch
 import numpy as np
 from sklearn import metrics
 import torch.backends.cudnn as cudnn
+from torch_geometric.utils import dropout_edge
 
 from frame.source.train import metrics as reg_metrics
 
 
-random.seed(8)
-np.random.seed(8)
-torch.manual_seed(8)
-if torch.cuda.is_available():
-    torch.cuda.manual_seed(8)
-    torch.cuda.manual_seed_all(8)
 cudnn.deterministic = True
 cudnn.benchmark = False
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 
-def train_epoch(model, optim, scheduler, lossfn, loader):
+def set_seed(seed):
+    random.seed(seed)
+    np.random.seed(seed)
+    torch.manual_seed(seed)
+    if torch.cuda.is_available():
+        torch.cuda.manual_seed(seed)
+        torch.cuda.manual_seed_all(seed)
+
+
+def train_epoch(model, optim, lossfn, loader, grad_clip_norm=None,
+                drop_edge_p=0.0, mask_feat_p=0.0):
     step = 1
     running_loss = 0.0
 
@@ -28,16 +33,33 @@ def train_epoch(model, optim, scheduler, lossfn, loader):
         batch = batch.to(device)
         optim.zero_grad()
 
+        x = batch.x.float()
+        edge_index = batch.edge_index
+        edge_attr = batch.edge_attr.float()
+
+        if drop_edge_p and drop_edge_p > 0 and edge_index.numel() > 0:
+            edge_index, edge_mask = dropout_edge(edge_index, p=drop_edge_p,
+                                                 force_undirected=True)
+            edge_attr = edge_attr[edge_mask]
+
+        if mask_feat_p and mask_feat_p > 0:
+            keep = (torch.rand_like(x) >= mask_feat_p).float()
+            x = x * keep
+
         # * Make predictions
-        out = model(x=batch.x.float(),
-                    edge_index=batch.edge_index,
-                    edge_attr=batch.edge_attr.float(),
+        out = model(x=x,
+                    edge_index=edge_index,
+                    edge_attr=edge_attr,
                     batch=batch.batch)
 
         # * Compute loss
         true = batch.y.float()
         loss = lossfn(torch.squeeze(out), torch.squeeze(true))
         loss.backward()
+
+        if grad_clip_norm is not None and grad_clip_norm > 0:
+            torch.nn.utils.clip_grad_norm_(model.parameters(),
+                                           max_norm=grad_clip_norm)
 
         # * Update gradients
         optim.step()
@@ -46,7 +68,6 @@ def train_epoch(model, optim, scheduler, lossfn, loader):
         running_loss += loss.detach().item()
         step += 1
 
-    scheduler.step()
     return running_loss / step
 
 

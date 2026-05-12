@@ -1,8 +1,23 @@
 import torch
 from torch_geometric.nn import (GCN, GraphSAGE, GIN, GAT,
-                                AttentiveFP, global_mean_pool)
+                                AttentiveFP,
+                                global_mean_pool,
+                                global_add_pool,
+                                global_max_pool)
 
-torch.manual_seed(8)
+
+_POOLS = {"mean": global_mean_pool,
+          "add": global_add_pool,
+          "sum": global_add_pool,
+          "max": global_max_pool}
+
+
+def _resolve_pool(name):
+    key = (name or "mean").lower()
+    if key not in _POOLS:
+        raise ValueError(f"Unknown pool '{name}'. "
+                         f"Choose from {sorted(set(_POOLS))}.")
+    return _POOLS[key]
 
 
 class GNN_GCN(torch.nn.Module):
@@ -14,6 +29,7 @@ class GNN_GCN(torch.nn.Module):
         dropout = config.get("dropout_rate", 0.4)
         improved = config.get("gcn_improved", True)
 
+        self.pool = _resolve_pool(config.get("pool", "mean"))
         self.model = GCN(in_channels=in_channels,
                          hidden_channels=hidden_channels,
                          num_layers=num_layers,
@@ -23,7 +39,7 @@ class GNN_GCN(torch.nn.Module):
 
     def forward(self, x, edge_index, edge_attr, batch):
         x = self.model(x, edge_index, edge_attr=edge_attr)
-        x_pool = global_mean_pool(x, batch)
+        x_pool = self.pool(x, batch)
 
         return x_pool
 
@@ -36,6 +52,7 @@ class GNN_SAGE(torch.nn.Module):
         num_layers = config.get("num_layers", 2)
         dropout = config.get("dropout_rate", 0.4)
 
+        self.pool = _resolve_pool(config.get("pool", "mean"))
         self.model = GraphSAGE(in_channels=in_channels,
                                hidden_channels=hidden_channels,
                                num_layers=num_layers,
@@ -44,7 +61,7 @@ class GNN_SAGE(torch.nn.Module):
 
     def forward(self, x, edge_index, edge_attr, batch):
         x = self.model(x, edge_index, edge_attr=edge_attr)
-        x_pool = global_mean_pool(x, batch)
+        x_pool = self.pool(x, batch)
 
         return x_pool
 
@@ -57,6 +74,7 @@ class GNN_GIN(torch.nn.Module):
         num_layers = config.get("num_layers", 2)
         dropout = config.get("dropout_rate", 0.4)
 
+        self.pool = _resolve_pool(config.get("pool", "mean"))
         self.model = GIN(in_channels=in_channels,
                          hidden_channels=hidden_channels,
                          num_layers=num_layers,
@@ -65,7 +83,7 @@ class GNN_GIN(torch.nn.Module):
 
     def forward(self, x, edge_index, edge_attr, batch):
         x = self.model(x, edge_index, edge_attr=edge_attr)
-        x_pool = global_mean_pool(x, batch)
+        x_pool = self.pool(x, batch)
 
         return x_pool
 
@@ -79,8 +97,15 @@ class GNN_GAT(torch.nn.Module):
         dropout = config.get("dropout_rate", 0.4)
         edge_dim = config.get("edge_dim", None)
         v2 = config.get("att_v2", True)
-        heads = config.get("num_heads", 1)
+        heads = config.get("heads", 1)
 
+        rounded = (hidden_channels // heads) * heads
+        if rounded == 0:
+            raise ValueError(f"hidden_channels ({hidden_channels}) must be "
+                             f">= heads ({heads}).")
+        hidden_channels = rounded
+
+        self.pool = _resolve_pool(config.get("pool", "mean"))
         self.model = GAT(in_channels=in_channels,
                          hidden_channels=hidden_channels,
                          num_layers=num_layers,
@@ -92,7 +117,7 @@ class GNN_GAT(torch.nn.Module):
 
     def forward(self, x, edge_index, edge_attr, batch):
         x = self.model(x, edge_index, edge_attr=edge_attr)
-        x_pool = global_mean_pool(x, batch)
+        x_pool = self.pool(x, batch)
 
         return x_pool
 

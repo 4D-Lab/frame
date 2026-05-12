@@ -56,6 +56,9 @@ venv.bak/
 *.zip
 *.png
 *.pdf
+*.md
+*.json
+*.lock
 
 # Dirs
 *temp*
@@ -68,3 +71,4 @@ venv.bak/
 !*logo.txt
 !*parameters*.yaml
 !*requirements*.txt
+!README.md

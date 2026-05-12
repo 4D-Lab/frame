@@ -21,12 +21,7 @@ def main():
         params = yaml.safe_load(stream)
 
     config = params["Data"]
-    tune = {}
-    for name, bounds in params["Tune"].items():
-        if isinstance(bounds["value"], int):
-            tune[name] = int(bounds["value"])
-        else:
-            tune[name] = float(bounds["value"])
+    tune = models.tune_fixed(params)
 
     path_checkpoint = config["path_checkpoint"]
     model_name = config.get("model", "gat").lower()
