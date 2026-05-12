@@ -4,7 +4,7 @@ build-backend = "hatchling.build"
 
 [project]
 name = "frame"
-version = "0.0.0"
+version = "0.1.0"
 requires-python = ">=3.11"
 authors = [{name = "Rafael Lopes", email = "rafael.lopes@uef.fi"}]
 readme = "README.md"
@@ -51,7 +51,7 @@ url = "https://download.pytorch.org/whl/cu128"
 explicit = true
 
 [tool.bumpversion]
-current_version = "0.0.0"
+current_version = "0.1.0"
 commit = true
 tag = true
 
