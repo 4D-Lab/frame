@@ -35,8 +35,25 @@ SYMBOLS = ["C", "N", "O", "F", "P", "S", "Cl", "Br", "I", "R"]
 
 
 class DecomposeDataset(InMemoryDataset):
+    """BRICS fragment-level molecular dataset.
+
+    Molecules with no BRICS-cleavable bonds cannot be decomposed and
+    are skipped. The SMILES and ids of skipped molecules are kept on
+    the dataset so frame.generate can report the exclusion rate
+    required by the manuscript.
+
+    Attributes:
+        excluded_smiles: SMILES strings of molecules skipped because
+            BRICS could not decompose them.
+        excluded_ids: Aligned list of dataset ids.
+        n_total: Total number of input rows (incl. excluded).
+    """
+
     def __init__(self, path: str, transform=None, pre_transform=None):
         self.path = path
+        self.excluded_smiles = []
+        self.excluded_ids = []
+        self.n_total = 0
         super().__init__(None, transform, pre_transform, log=False)
 
         data_list = self.process_data()
@@ -55,6 +72,7 @@ class DecomposeDataset(InMemoryDataset):
         col_id = cols.index("id")
 
         dataset = dataset[1:-1]
+        self.n_total = len(dataset)
 
         # * Iterate
         data_list = []
@@ -74,31 +92,45 @@ class DecomposeDataset(InMemoryDataset):
 
             # Create graph object
             frags, frag_map, atom_map = _get_map(mol_smiles)
-            if frags is not None:
-                xs = []
-                for frag in frags:
-                    xs.append(_gen_features(frag))
-                x = torch.stack(xs, dim=0)
+            if frags is None:
+                self.excluded_smiles.append(mol_smiles)
+                self.excluded_ids.append(mol_idx)
+                continue
 
-                mapping = [list(atom_map.keys()), list(atom_map.values())]
+            xs = []
+            for frag in frags:
+                xs.append(_gen_features(frag))
+            x = torch.stack(xs, dim=0)
 
-                edges = []
-                for u, v in frag_map:
-                    edges.append((u, v))
-                    edges.append((v, u))
-                edge_index = torch.tensor(edges, dtype=torch.long)
-                edge_index = edge_index.t().contiguous()
-                edge_attr = torch.ones(edge_index.size(1), 1)
+            mapping = [list(atom_map.keys()), list(atom_map.values())]
 
-                data = Data(x=x, edge_index=edge_index,
-                            edge_attr=edge_attr, y=y,
-                            idx=mol_idx, set=mol_set,
-                            frag=frags, atom_map=mapping,
-                            smiles=mol_smiles)
+            edges = []
+            for u, v in frag_map:
+                edges.append((u, v))
+                edges.append((v, u))
+            edge_index = torch.tensor(edges, dtype=torch.long)
+            edge_index = edge_index.t().contiguous()
+            edge_attr = torch.ones(edge_index.size(1), 1)
 
-                data_list.append(data)
+            data = Data(x=x, edge_index=edge_index,
+                        edge_attr=edge_attr, y=y,
+                        idx=mol_idx, set=mol_set,
+                        frag=frags, atom_map=mapping,
+                        smiles=mol_smiles)
+
+            data_list.append(data)
 
         return data_list
+
+    def exclusion_summary(self):
+        """Return {n_total, n_excluded, fraction, excluded} dict."""
+        n_excl = len(self.excluded_smiles)
+        frac = (n_excl / self.n_total) if self.n_total else 0.0
+        return {"n_total": self.n_total,
+                "n_excluded": n_excl,
+                "fraction_excluded": frac,
+                "excluded_smiles": list(self.excluded_smiles),
+                "excluded_ids": list(self.excluded_ids)}
 
     @property
     def raw_file_names(self):

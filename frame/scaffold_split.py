@@ -1,8 +1,42 @@
+import json
 import argparse
+from collections import Counter
+from pathlib import Path
 
 import pandas as pd
+from rdkit import Chem
+from rdkit import RDLogger
+from rdkit.Chem.Scaffolds import MurckoScaffold
 
 from frame.source.datasets import scaffold_split
+
+
+lg = RDLogger.logger()
+lg.setLevel(RDLogger.CRITICAL)
+
+
+def _murcko(smiles: str, include_chirality: bool):
+    mol = Chem.MolFromSmiles(smiles)
+    if mol is None:
+        return ""
+    return MurckoScaffold.MurckoScaffoldSmiles(
+        mol=mol, includeChirality=include_chirality)
+
+
+def _scaffold_stats(smiles_list: list, sets: list, include_chirality: bool):
+    """Summarise scaffold counts and split sizes."""
+    scaffolds = [_murcko(s, include_chirality) for s in smiles_list]
+    group_sizes = Counter(scaffolds)
+    set_counts = Counter(sets)
+    return {"n_molecules": len(smiles_list),
+            "n_scaffolds": len(group_sizes),
+            "n_singleton_scaffolds": sum(1 for v in group_sizes.values()
+                                         if v == 1),
+            "largest_scaffold_group": max(group_sizes.values(),
+                                          default=0),
+            "split_sizes": {"train": set_counts.get("train", 0),
+                            "valid": set_counts.get("valid", 0),
+                            "test": set_counts.get("test", 0)}}
 
 
 def main():
@@ -25,7 +59,8 @@ def main():
     if "smiles" not in df.columns:
         raise ValueError("Input CSV must have a `smiles` column.")
 
-    sets = scaffold_split(df["smiles"].tolist(),
+    smiles_list = df["smiles"].tolist()
+    sets = scaffold_split(smiles_list,
                           fracs=tuple(args.fracs),
                           include_chirality=args.chirality)
     df["set"] = sets
@@ -34,3 +69,8 @@ def main():
     print(f"Scaffold split: {counts}")
 
     df.to_csv(args.output, index=False)
+
+    stats = _scaffold_stats(smiles_list, sets, args.chirality)
+    stats_path = Path(args.output).with_name("scaffold_stats.json")
+    with open(stats_path, "w") as fh:
+        json.dump(stats, fh, indent=2)

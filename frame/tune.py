@@ -97,10 +97,12 @@ def objective(trial, params, dataset):
             total_time = 0.0
             n_params = 0
             for seed in seeds:
-                state, results, fit_time, n_params = runner.train_one_seed(
-                    int(seed), train_data, valid_loader, model_name,
-                    config, epochs, patience, task, grad_clip,
-                    drop_edge_p, mask_feat_p, size, workers)
+                state, results, fit_time, n_params, _ = (
+                    runner.train_one_seed(int(seed), train_data,
+                                          valid_loader, model_name,
+                                          config, epochs, patience,
+                                          task, grad_clip, drop_edge_p,
+                                          mask_feat_p, size, workers))
                 per_seed_optim.append(float(results["optim"]))
                 per_seed_results.append(results)
                 total_time += fit_time
