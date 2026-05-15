@@ -228,11 +228,9 @@ def main():
     if other_records.exists():
         peer = _load_records_npz(other_records)
         spearman_path = out_dir / "cross_explainer_spearman.json"
-        explain.spearman_between_runs(mol_exp.records, peer,
-                                      spearman_path)
-        explain.spearman_between_runs(peer, mol_exp.records,
-                                      other_dir
-                                      / "cross_explainer_spearman.json")
+        other_path = other_dir / "cross_explainer_spearman.json"
+        explain.spearman_between_runs(mol_exp.records, peer, spearman_path)
+        explain.spearman_between_runs(peer, mol_exp.records, other_path)
     _dump_records_npz(mol_exp.records, out_dir / "records.npz")
 
 
