@@ -208,8 +208,7 @@ def main():
         _run_aggregated(model, dataloader, explainer, task,
                         smiles_index, mol_exp)
     else:
-        mol_exp = explain.MolExplain(loader, out_dir,
-                                     algorithm=args.algorithm)
+        mol_exp = explain.MolExplain(loader, out_dir, args.algorithm)
         _run_native(model, dataloader, explainer, task, mol_exp)
 
     classifier = None
