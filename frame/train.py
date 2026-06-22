@@ -36,6 +36,21 @@ def _report_seed_stats(task, per_seed_results, project_dir):
         json.dump(summary, fh, indent=2)
 
 
+def _write_timing(per_seed_timing, project_dir):
+    all_epochs = [t for entry in per_seed_timing
+                  for t in entry["epoch_times"]]
+    summary = {"per_seed": per_seed_timing,
+               "total_fit_time": float(sum(e["fit_time"]
+                                           for e in per_seed_timing)),
+               "mean_seconds_per_epoch": (float(np.mean(all_epochs))
+                                          if all_epochs else 0.0),
+               "std_seconds_per_epoch": (float(np.std(all_epochs))
+                                         if all_epochs else 0.0),
+               "n_epochs_total": len(all_epochs)}
+    with open(project_dir / "timing.json", "w") as fh:
+        json.dump(summary, fh, indent=2)
+
+
 def run(params, dataset):
     epochs = params["Data"].get("epochs", 10)
     workers = params["Data"].get("workers", 4)
@@ -74,17 +89,20 @@ def run(params, dataset):
 
     # * Train one model per seed, keep the best-seed checkpoint
     per_seed_results = []
+    per_seed_timing = []
     best_state = None
     best_optim = -float("inf")
     for seed in seeds:
-        state, results, _, _ = runner.train_one_seed(int(seed), train_data,
-                                                     valid_loader,
-                                                     model_name, config,
-                                                     epochs, patience, task,
-                                                     grad_clip, drop_edge_p,
-                                                     mask_feat_p, size,
-                                                     workers)
+        state, results, fit_time, _, epoch_times = runner.train_one_seed(
+            int(seed), train_data, valid_loader, model_name, config,
+            epochs, patience, task, grad_clip, drop_edge_p,
+            mask_feat_p, size, workers)
         per_seed_results.append(results)
+        per_seed_timing.append({"seed": int(seed),
+                                "fit_time": float(fit_time),
+                                "n_epochs": len(epoch_times),
+                                "epoch_times": [float(t)
+                                                for t in epoch_times]})
         if results["optim"] > best_optim:
             best_optim = float(results["optim"])
             best_state = state
@@ -93,6 +111,7 @@ def run(params, dataset):
     torch.save(best_state, str(project_dir / "best_model.pt"))
 
     _report_seed_stats(task, per_seed_results, project_dir)
+    _write_timing(per_seed_timing, project_dir)
 
 
 def main():

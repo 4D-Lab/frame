@@ -5,13 +5,13 @@ Data:
   path_joblib: "path/to/joblib_file.joblib"
   path_checkpoint: "path/to/checkpoint.pt"
 
-  trials: 50
-  epochs: 50
+  trials: 50                           # number of Optuna trials
+  epochs: 50                           # max epochs per run
   model: gat                           # gcn | gat | gin | sage | attentive
-  batch_size: 128
-  patience: 15
+  batch_size: 128                      # graphs per mini-batch
+  patience: 15                         # early-stopping patience (epochs)
   loader: default                      # default | decompose
-  grad_clip_norm: 1.0
+  grad_clip_norm: 1.0                  # max grad-norm (0/None disables)
   drop_edge_p: 0.0                     # train-time edge drop probability
   mask_feat_p: 0.0                     # train-time node feature mask probability
   regression_loss: mse                 # mse | huber | smooth_l1
@@ -21,29 +21,33 @@ Data:
   train_seeds: [13, 42, 73, 101, 202]  # seeds for final retraining
 
 Tune:
-  hidden_channels:
+  hidden_channels:                      # node embedding width
     min: 32
     max: 512
     # value: 16
-  num_layers:
+  num_layers:                           # message-passing layers
     min: 1
     max: 4
     # value: 2
-  dropout_rate:
+  dropout_rate:                         # dropout rate
     min: 0.1
     max: 0.6
     # value: 0.3
-  timesteps:
-    min: 1
-    max: 4
-    # value: 2
-  heads:
+  pool:                                 # readout (ignored by attentive)
+    choices: [mean, add, max]
+    # value: mean
+  gcn_improved:                        # GCN self-loop weighting (A + 2I)
+    value: true
+  heads:                               # GAT attention heads
     min: 1
     max: 4
     # value: 3
-  pool:
-    choices: [mean, add, max]
-    # value: mean
+  att_v2:                              # use GATv2 conv
+    value: true
+  num_timesteps:                       # AttentiveFP readout refinement steps
+    min: 1
+    max: 4
+    # value: 2
 
   learning_rate:
     # min: 1.0e-4

@@ -17,33 +17,36 @@ def train_one_seed(seed: int, train_data: list, valid_loader: DataLoader,
                    batch_size: int, workers: int):
     """Train a fresh model under a fixed seed and return its best state.
 
-    Reseeds the global RNGs and pins the train ``DataLoader``'s shuffle
-    generator so that two calls with the same ``seed`` produce the same
+    Reseeds the global RNGs and pins the train DataLoader's shuffle
+    generator so that two calls with the same seed produce the same
     trajectory. The valid loader is reused across seeds since it does not
     shuffle.
 
     Args:
         seed: Integer used to reseed Python/NumPy/Torch RNGs and the
             train-loader generator.
-        train_data: List of ``Data`` objects belonging to the train split.
+        train_data: List of Data objects belonging to the train split.
         valid_loader: Pre-built validation loader (no shuffle, seed-free).
-        model_name: Backbone selector consumed by ``models.select_model``.
-        config: Hyperparameter dict consumed by ``models.model_setup``.
+        model_name: Backbone selector consumed by models.select_model.
+        config: Hyperparameter dict consumed by models.model_setup.
         epochs: Maximum number of epochs to train.
-        patience: Early-stopping patience on the ``optim`` metric.
-        task: ``"classification"`` or ``"regression"``.
-        grad_clip: Max-norm gradient clipping value (``None``/0 disables).
+        patience: Early-stopping patience on the optim metric.
+        task: "classification" or "regression".
+        grad_clip: Max-norm gradient clipping value (None/0 disables).
         drop_edge_p: Train-time edge drop probability.
         mask_feat_p: Train-time node-feature mask probability.
         batch_size: Train loader batch size.
         workers: Number of DataLoader workers.
 
     Returns:
-        Tuple ``(best_state, results, fit_time, n_params)`` where
-        ``best_state`` is the ``state_dict`` of the best epoch on the valid
-        ``optim`` metric, ``results`` is the validation metric dict at that
-        state, ``fit_time`` is wall-clock seconds spent training, and
-        ``n_params`` is the trainable parameter count.
+        Tuple (best_state, results, fit_time, n_params, epoch_times)
+        where best_state is the state_dict of the best epoch on
+        the valid optim metric, results is the validation
+        metric dict at that state, fit_time is wall-clock seconds
+        spent training, n_params is the trainable parameter count,
+        and epoch_times is a list of per-epoch wall-clock seconds
+        (length is the number of epochs actually executed before
+        early stopping).
     """
     train_pkg.set_seed(seed)
     generator = torch.Generator()
@@ -58,15 +61,18 @@ def train_one_seed(seed: int, train_data: list, valid_loader: DataLoader,
     best_metric = -float("inf")
     patience_counter = 0
     best_state = None
+    epoch_times = []
 
     start = time.time()
     for _ in tqdm(range(epochs), ncols=120, desc=f"Seed {seed}"):
+        epoch_start = time.perf_counter()
         _ = train_pkg.train_epoch(model, optim, lossfn, train_loader,
                                   grad_clip_norm=grad_clip,
                                   drop_edge_p=drop_edge_p,
                                   mask_feat_p=mask_feat_p)
         val_metrics = train_pkg.valid_epoch(model, task, valid_loader)
         schdlr.step()
+        epoch_times.append(time.perf_counter() - epoch_start)
 
         if val_metrics["optim"] > best_metric:
             patience_counter = 0
@@ -85,4 +91,4 @@ def train_one_seed(seed: int, train_data: list, valid_loader: DataLoader,
 
     n_params = sum(int(np.prod(p.size())) for p in model.parameters()
                    if p.requires_grad)
-    return best_state, results, fit_time, n_params
+    return best_state, results, fit_time, n_params, epoch_times
