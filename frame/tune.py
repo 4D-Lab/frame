@@ -127,6 +127,20 @@ def objective(trial, params, dataset):
                 raise optuna.exceptions.TrialPruned()
 
 
+def _build_dimension(col: str, series: pd.Series):
+    if pd.api.types.is_numeric_dtype(series):
+        values = series.values
+        return dict(label=col, values=values,
+                    range=[float(np.nanmin(values)),
+                           float(np.nanmax(values))])
+
+    codes, uniques = pd.factorize(series, sort=True)
+    return dict(label=col, values=codes,
+                range=[0, max(len(uniques) - 1, 1)],
+                tickvals=list(range(len(uniques))),
+                ticktext=[str(u) for u in uniques])
+
+
 def get_dataframe(study, task):
     records = []
     for trial in study.trials:
@@ -218,12 +232,7 @@ def main():
     feats = [col for col in list(df.columns) if col not in header]
     feats = feats + ["optim"]
 
-    dimensions = []
-    for col in feats:
-        col_values = df[col].values
-        dim = dict(label=col, values=col_values,
-                   range=[col_values.min(), col_values.max()])
-        dimensions.append(dim)
+    dimensions = [_build_dimension(col, df[col]) for col in feats]
 
     fig = go.Figure(data=go.Parcoords(line=dict(color=df["optim"],
                                                 colorscale="viridis",
