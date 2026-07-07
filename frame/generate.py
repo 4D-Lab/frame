@@ -49,6 +49,42 @@ def _write_dataset_stats(dataset, loader: str, path_csv: str,
         json.dump(stats, fh, indent=2)
 
 
+def _degree_histogram(dataset, max_bins: int = 512):
+    """Train-split node in-degree histogram for PNA degree scalers.
+
+    Accumulates, over the training graphs (data.set == "train"),
+    how many nodes have each in-degree. The node count comes from
+    data.x (the definitive atom set) rather than num_nodes,
+    and destination indices are clamped into range, so each graph
+    allocates only per-graph-sized tensors. Per-node degrees are
+    capped at max_bins - 1 to bound the histogram length. Edgeless
+    graphs (the (2, 0) fallback) are skipped. Falls back to the
+    full dataset if no graph is labelled "train".
+
+    Args:
+        dataset: The in-memory dataset of PyG Data objects.
+        max_bins: Hard cap on the histogram length; degrees at or
+            above it fall in the final bin. Defaults to 512.
+    """
+    graphs = [d for d in dataset if getattr(d, "set", None) == "train"]
+    if not graphs:
+        graphs = list(dataset)
+    deg = torch.zeros(1, dtype=torch.long)
+    for data in graphs:
+        if data.edge_index.numel() == 0:
+            continue
+        n = int(data.x.size(0))
+        dst = data.edge_index[1].clamp(min=0, max=n - 1)
+        node_deg = torch.bincount(dst, minlength=n).clamp(max=max_bins - 1)
+        counts = torch.bincount(node_deg, minlength=deg.numel())
+        if counts.numel() > deg.numel():
+            counts[:deg.numel()] += deg
+            deg = counts
+        else:
+            deg += counts
+    return deg
+
+
 def main():
     args_parser = argparse.ArgumentParser()
     args_parser.add_argument("-c", "--config", dest="config", required=True)
@@ -87,7 +123,14 @@ def main():
                 "edge_dim": dataset.num_edge_features,
                 "bce_weight": bce_weight,
                 "loader": loader,
-                "project_dir": project_dir}
+                "project_dir": project_dir,
+                "deg": _degree_histogram(dataset)}
+
+    # Iterating the dataset (stats, degree histogram) fills PyG's
+    # InMemoryDataset _data_list cache with per-graph tensor views
+    # into the collated store; persisting that cache would bloat the
+    # joblib ~N-fold. Reset it so only the compact store is serialized.
+    dataset._data_list = None
 
     dump_data = {"dataset": dataset, "metadata": metadata}
     joblib.dump(dump_data, project_dir / "data.joblib")

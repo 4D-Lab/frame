@@ -75,6 +75,7 @@ def run(params, dataset):
     config["regression_loss"] = params["Data"].get("regression_loss", "mse")
     config["huber_delta"] = params["Data"].get("huber_delta", 1.0)
     config["warmup_epochs"] = int(params["Data"].get("warmup_epochs", 0))
+    config["deg"] = params["Data"].get("deg")
     params["Data"]["trial"] = None
 
     size = int(config.get("batch_size", size))
@@ -139,6 +140,7 @@ def main():
     params["Data"]["feat_size"] = data["metadata"]["feat_size"]
     params["Data"]["edge_dim"] = data["metadata"]["edge_dim"]
     params["Data"]["bce_weight"] = data["metadata"]["bce_weight"]
+    params["Data"]["deg"] = data["metadata"].get("deg")
     params["Data"]["project_dir"] = project_dir
 
     if os.path.isdir(cwd / "???"):

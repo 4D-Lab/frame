@@ -41,6 +41,7 @@ def main():
     tune["feat_size"] = data["metadata"]["feat_size"]
     tune["edge_dim"] = data["metadata"]["edge_dim"]
     tune["bce_weight"] = data["metadata"]["bce_weight"]
+    tune["deg"] = data["metadata"].get("deg")
 
     # * Prepare dataloader
     test_data = [data for data in dataset if data.set == "test"]

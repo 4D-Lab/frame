@@ -7,7 +7,7 @@ Data:
 
   trials: 50                           # number of Optuna trials
   epochs: 50                           # max epochs per run
-  model: gat                           # gcn | gat | gin | sage | attentive
+  model: gat                           # gcn | gat | gin | sage | attentive | pna
   batch_size: 128                      # graphs per mini-batch
   patience: 15                         # early-stopping patience (epochs)
   loader: default                      # default | decompose
@@ -48,6 +48,13 @@ Tune:
     min: 1
     max: 4
     # value: 2
+  pna_aggregators:                     # PNA neighbour aggregators
+    value: [mean, min, max, std]
+  pna_scalers:                         # PNA degree scalers
+    value: [identity, amplification, attenuation]
+  pna_towers:                          # PNA towers (auto-rounded)
+    # choices: [1, 2, 4]
+    value: 1
 
   learning_rate:
     # min: 1.0e-4

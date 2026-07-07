@@ -71,6 +71,8 @@ def select_model(model_name, config):
         model = pyg_models.GNN_GIN(config).to(device)
     elif model_name == "gcn":
         model = pyg_models.GNN_GCN(config).to(device)
+    elif model_name == "pna":
+        model = pyg_models.GNN_PNA(config).to(device)
     else:
         raise NotImplementedError("Model not available")
 
@@ -84,6 +86,8 @@ def _cast_value(val):
         return int(val)
     if isinstance(val, float):
         return float(val)
+    if isinstance(val, (list, tuple)):
+        return list(val)
     return str(val)
 
 
@@ -122,6 +126,16 @@ def optuna_suggest(params, trial):
         original = int(configs["hidden_channels"])
         rounded = (original // heads) * heads
 
+        if rounded != original:
+            configs["hidden_channels"] = rounded
+            trial.set_user_attr("hidden_channels_suggested", original)
+            trial.set_user_attr("hidden_channels_used", rounded)
+
+    # Round hidden_channels to match pna_towers, and log
+    if model_name == "pna":
+        towers = int(configs.get("pna_towers", 1))
+        original = int(configs["hidden_channels"])
+        rounded = (original // towers) * towers
         if rounded != original:
             configs["hidden_channels"] = rounded
             trial.set_user_attr("hidden_channels_suggested", original)
