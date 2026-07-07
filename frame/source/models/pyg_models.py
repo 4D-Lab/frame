@@ -1,6 +1,6 @@
 import torch
 from torch_geometric.nn import (GCN, GraphSAGE, GIN, GAT,
-                                AttentiveFP,
+                                AttentiveFP, PNA,
                                 global_mean_pool,
                                 global_add_pool,
                                 global_max_pool)
@@ -120,6 +120,52 @@ class GNN_GAT(torch.nn.Module):
         x_pool = self.pool(x, batch)
 
         return x_pool
+
+
+class GNN_PNA(torch.nn.Module):
+    def __init__(self, config):
+        super().__init__()
+        in_channels = config.get("feat_size", None)
+        hidden_channels = config.get("hidden_channels", 64)
+        num_layers = config.get("num_layers", 2)
+        dropout = config.get("dropout_rate", 0.4)
+        edge_dim = config.get("edge_dim", None)
+        towers = int(config.get("pna_towers", 1))
+        aggregators = config.get("pna_aggregators",
+                                 ["mean", "min", "max", "std"])
+        scalers = config.get("pna_scalers",
+                             ["identity", "amplification", "attenuation"])
+
+        deg = config.get("deg", None)
+        if deg is None:
+            raise ValueError("PNA requires a degree histogram. Re-run "
+                             "frame_gen so metadata stores 'deg'.")
+        deg = torch.as_tensor(deg, dtype=torch.long)
+
+        rounded = (hidden_channels // towers) * towers
+        if rounded == 0:
+            raise ValueError(f"hidden_channels ({hidden_channels}) must "
+                             f">= pna_towers ({towers}).")
+        hidden_channels = rounded
+
+        self.pool = _resolve_pool(config.get("pool", "mean"))
+        self.model = PNA(in_channels=in_channels,
+                         hidden_channels=hidden_channels,
+                         num_layers=num_layers,
+                         out_channels=hidden_channels,
+                         dropout=dropout,
+                         aggregators=aggregators,
+                         scalers=scalers,
+                         deg=deg,
+                         edge_dim=edge_dim,
+                         towers=towers)
+        self.head = torch.nn.Linear(hidden_channels, 1)
+
+    def forward(self, x, edge_index, edge_attr, batch):
+        x = self.model(x, edge_index, edge_attr=edge_attr)
+        x_pool = self.pool(x, batch)
+
+        return self.head(x_pool)
 
 
 class GNN_AttentiveFP(torch.nn.Module):

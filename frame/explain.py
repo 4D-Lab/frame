@@ -97,6 +97,7 @@ def _model_config(tune: dict, metadata: dict, task: str, params: dict):
     cfg["feat_size"] = metadata["feat_size"]
     cfg["edge_dim"] = metadata["edge_dim"]
     cfg["bce_weight"] = metadata["bce_weight"]
+    cfg["deg"] = metadata.get("deg")
     cfg["task"] = task
     cfg["regression_loss"] = params["Data"].get("regression_loss", "mse")
     return cfg

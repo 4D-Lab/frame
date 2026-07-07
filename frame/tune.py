@@ -74,6 +74,7 @@ def objective(trial, params, dataset):
     config["regression_loss"] = params["Data"].get("regression_loss", "mse")
     config["huber_delta"] = params["Data"].get("huber_delta", 1.0)
     config["warmup_epochs"] = int(params["Data"].get("warmup_epochs", 0))
+    config["deg"] = params["Data"].get("deg")
     params["Data"]["trial"] = trial
     size = int(config.get("batch_size", size))
 
@@ -125,6 +126,20 @@ def objective(trial, params, dataset):
                 time.sleep(90)
             else:
                 raise optuna.exceptions.TrialPruned()
+
+
+def _build_dimension(col: str, series: pd.Series):
+    if pd.api.types.is_numeric_dtype(series):
+        values = series.values
+        return dict(label=col, values=values,
+                    range=[float(np.nanmin(values)),
+                           float(np.nanmax(values))])
+
+    codes, uniques = pd.factorize(series, sort=True)
+    return dict(label=col, values=codes,
+                range=[0, max(len(uniques) - 1, 1)],
+                tickvals=list(range(len(uniques))),
+                ticktext=[str(u) for u in uniques])
 
 
 def get_dataframe(study, task):
@@ -189,6 +204,7 @@ def main():
     params["Data"]["feat_size"] = data["metadata"]["feat_size"]
     params["Data"]["edge_dim"] = data["metadata"]["edge_dim"]
     params["Data"]["bce_weight"] = data["metadata"]["bce_weight"]
+    params["Data"]["deg"] = data["metadata"].get("deg")
     params["Data"]["project_dir"] = project_dir
 
     if os.path.isdir(cwd / "???"):
@@ -218,12 +234,7 @@ def main():
     feats = [col for col in list(df.columns) if col not in header]
     feats = feats + ["optim"]
 
-    dimensions = []
-    for col in feats:
-        col_values = df[col].values
-        dim = dict(label=col, values=col_values,
-                   range=[col_values.min(), col_values.max()])
-        dimensions.append(dim)
+    dimensions = [_build_dimension(col, df[col]) for col in feats]
 
     fig = go.Figure(data=go.Parcoords(line=dict(color=df["optim"],
                                                 colorscale="viridis",
