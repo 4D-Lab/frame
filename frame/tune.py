@@ -214,9 +214,11 @@ def main():
     trials = params["Data"]["trials"]
     url_db = f"sqlite:///{project_dir / 'optuna_study.db'}"
 
+    sampler = optuna.samplers.TPESampler(seed=8)
     storage = optuna.storages.RDBStorage(url=url_db)
     study = optuna.create_study(study_name=name, direction="maximize",
-                                storage=storage, load_if_exists=True)
+                                storage=storage, load_if_exists=True,
+                                sampler=sampler)
     while len(study.trials) <= trials:
         study.optimize(lambda trial: objective(trial, params, dataset),
                        n_trials=1)
