@@ -6,11 +6,14 @@ import numpy as np
 from tqdm import tqdm
 from rdkit import Chem
 from rdkit import RDLogger
-from rdkit.Chem import BRICS
 from torch_geometric.data.data import Data
 from torch_geometric.data import InMemoryDataset
 from torch_geometric.data.storage import GlobalStorage
 from torch_geometric.data.data import DataEdgeAttr, DataTensorAttr
+
+from frame.source.datasets.ertl import get_map_ertl
+from frame.source.datasets.brics import get_map_brics
+from frame.source.datasets.frag_edges import edge_dim
 
 random.seed(8)
 np.random.seed(8)
@@ -33,24 +36,43 @@ STEREOS = [Chem.rdchem.BondStereo.STEREONONE,
            Chem.rdchem.BondStereo.STEREOE]
 SYMBOLS = ["C", "N", "O", "F", "P", "S", "Cl", "Br", "I", "R"]
 
+# Available decomposition backends
+_DECOMPOSERS = {"brics": get_map_brics, "ertl": get_map_ertl}
+
 
 class DecomposeDataset(InMemoryDataset):
-    """BRICS fragment-level molecular dataset.
+    """Fragment-level molecular dataset with edge features.
 
-    Molecules with no BRICS-cleavable bonds cannot be decomposed and
-    are skipped. The SMILES and ids of skipped molecules are kept on
-    the dataset so frame.generate can report the exclusion rate
-    required by the manuscript.
+    Fragments become graph nodes; edges carry the chemistry of the
+    bond(s) connecting two fragments (see frag_edges.py). Two backends
+    are available via ``method``:
+
+    - ``"ertl"`` (default): functional groups stay intact as nodes and
+      molecules are essentially never excluded.
+    - ``"brics"``: original BRICS retrosynthetic fragmentation;
+      molecules with no BRICS-cleavable bond are skipped.
+
+    The SMILES and ids of skipped molecules are kept on the dataset so
+    frame.generate can report the exclusion rate.
 
     Attributes:
-        excluded_smiles: SMILES strings of molecules skipped because
-            BRICS could not decompose them.
+        excluded_smiles: SMILES strings of molecules that could not be
+            decomposed by the chosen backend.
         excluded_ids: Aligned list of dataset ids.
         n_total: Total number of input rows (incl. excluded).
     """
 
-    def __init__(self, path: str, transform=None, pre_transform=None):
+    def __init__(self, path: str, method: str = "brics",
+                 extended_edges: bool = True,
+                 transform=None, pre_transform=None):
         self.path = path
+        if method not in _DECOMPOSERS:
+            raise ValueError(f"method must be one of {list(_DECOMPOSERS)}, "
+                             f"got {method!r}")
+        self.method = method
+        self.extended_edges = extended_edges
+        self._get_map = _DECOMPOSERS[method]
+        self.edge_dim = edge_dim(extended_edges)
         self.excluded_smiles = []
         self.excluded_ids = []
         self.n_total = 0
@@ -91,7 +113,8 @@ class DecomposeDataset(InMemoryDataset):
             mol_idx = line[col_id]
 
             # Create graph object
-            frags, frag_map, atom_map = _get_map(mol_smiles)
+            frags, frag_map, atom_map, edge_feats = self._get_map(
+                mol_smiles, extended=self.extended_edges)
             if frags is None:
                 self.excluded_smiles.append(mol_smiles)
                 self.excluded_ids.append(mol_idx)
@@ -104,13 +127,25 @@ class DecomposeDataset(InMemoryDataset):
 
             mapping = [list(atom_map.keys()), list(atom_map.values())]
 
+            # Bidirectional edges; each undirected pair keeps its feature
+            # vector on both directions.
             edges = []
-            for u, v in frag_map:
+            feats = []
+            for (u, v), feat in zip(frag_map, edge_feats):
                 edges.append((u, v))
                 edges.append((v, u))
-            edge_index = torch.tensor(edges, dtype=torch.long)
-            edge_index = edge_index.t().contiguous()
-            edge_attr = torch.ones(edge_index.size(1), 1)
+                feats.append(feat)
+                feats.append(feat)
+
+            if len(edges) == 0:
+                # Single-fragment molecule: no edges.
+                edge_index = torch.zeros((2, 0), dtype=torch.long)
+                edge_attr = torch.zeros((0, self.edge_dim),
+                                        dtype=torch.float)
+            else:
+                edge_index = torch.tensor(edges, dtype=torch.long)
+                edge_index = edge_index.t().contiguous()
+                edge_attr = torch.tensor(feats, dtype=torch.float)
 
             data = Data(x=x, edge_index=edge_index,
                         edge_attr=edge_attr, y=y,
@@ -147,46 +182,6 @@ class DecomposeDataset(InMemoryDataset):
         pass
 
 
-def _get_map(smiles: str):
-    mol = Chem.MolFromSmiles(smiles)
-    brics_bonds = list(BRICS.FindBRICSBonds(mol))
-    connections = [bond[0] for bond in brics_bonds]
-
-    if len(brics_bonds) == 0:
-        return None, None, None
-
-    # Get the bond object (BRICS) between the two atoms
-    bond_idx = []
-    atom_pairs = [bond[0] for bond in brics_bonds]
-    for atom_pair in atom_pairs:
-        bond = mol.GetBondBetweenAtoms(atom_pair[0], atom_pair[1])
-        if bond:
-            bond_idx.append(bond.GetIdx())
-
-    # Break the molecule at bond indices and get fragments
-    broken_mol = Chem.FragmentOnBonds(mol, bond_idx, addDummies=False)
-    frag_idx = Chem.GetMolFrags(broken_mol)
-
-    # Create a map from atom index to fragment index
-    atom_map = {}  # Atom → Fragment
-    for i, frag in enumerate(frag_idx):
-        for atom_idx in frag:
-            atom_map[atom_idx] = i
-
-    # Get fragments SMILES
-    frag_mols = Chem.GetMolFrags(broken_mol, asMols=True)
-    fragments = [Chem.MolToSmiles(frag) for frag in frag_mols]
-
-    # Create fragment connection map
-    frag_map = []  # Fragment → Fragment
-    for conn in connections:
-        frag_0 = atom_map[conn[0]]
-        frag_1 = atom_map[conn[1]]
-        frag_map.append((frag_0, frag_1))
-
-    return fragments, frag_map, atom_map
-
-
 def _gen_features(smiles):
     mol = Chem.MolFromSmiles(smiles)
 
@@ -221,24 +216,6 @@ def _gen_features(smiles):
                          chirality_type)
         xs.append(x)
     frag_x = torch.stack(xs, dim=0)
-
-    # edge_attrs = []
-    # for bond in mol.GetBonds():
-    #     bond_type = bond.GetBondType()
-    #     single = 1. if bond_type == Chem.rdchem.BondType.SINGLE else 0.
-    #     double = 1. if bond_type == Chem.rdchem.BondType.DOUBLE else 0.
-    #     triple = 1. if bond_type == Chem.rdchem.BondType.TRIPLE else 0.
-    #     aromatic = 1. if bond_type == Chem.rdchem.BondType.AROMATIC else 0.
-    #     conjugation = 1. if bond.GetIsConjugated() else 0.
-    #     ring = 1. if bond.IsInRing() else 0.
-    #     stereo = [0.] * 4
-    #     stereo[STEREOS.index(bond.GetStereo())] = 1.
-
-    #     edge_attr = torch.tensor(
-    #         [single, double, triple, aromatic, conjugation, ring] + stereo)
-
-    #     edge_attrs += [edge_attr, edge_attr]
-    # frag_edge_attr = torch.stack(edge_attrs, dim=0)
 
     agg_x = torch.sum(frag_x, dim=0)
     return agg_x

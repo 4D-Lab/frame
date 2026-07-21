@@ -96,6 +96,7 @@ def main():
     name = params["Data"].get("name", None)
     path_csv = params["Data"].get("path_csv", None)
     loader = params["Data"].get("loader", "default").lower()
+    method = params["Data"].get("method", "brics").lower()
 
     if name.lower() == "none":
         name = str(uuid.uuid4()).split("-")[0]
@@ -109,7 +110,7 @@ def main():
     if loader == "default":
         dataset = datasets.MolecularDataset(path_csv)
     elif loader == "decompose":
-        dataset = datasets.DecomposeDataset(path_csv)
+        dataset = datasets.DecomposeDataset(path_csv, method)
     else:
         raise NotImplementedError("Loader not available")
 
