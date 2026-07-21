@@ -53,6 +53,28 @@ def gini(values: np.ndarray):
     return float(numerator / (n * total))
 
 
+def gini_corrected(values: np.ndarray):
+    """Gini normalised by the maximum attainable at this vector length.
+
+    The Gini coefficient over ``n`` items is bounded above by
+    ``(n - 1) / n``, so raw values are not comparable between
+    representations of different granularity: a 32-atom graph can reach
+    0.97 while a 6-fragment graph caps at 0.83. Dividing by that bound
+    makes attribution concentration comparable across representations.
+
+    Args:
+        values: 1-D numpy array of importance scores.
+
+    Returns:
+        Float in [0, 1]; 0.0 for arrays with fewer than two entries.
+    """
+    arr = np.asarray(values, dtype=float).ravel()
+    n = arr.size
+    if n < 2:
+        return 0.0
+    return float(gini(arr) * n / (n - 1))
+
+
 def mean_gini(per_mol_scores: Sequence[np.ndarray]):
     """Mean Gini coefficient across a population of molecules.
 
