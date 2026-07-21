@@ -39,12 +39,13 @@ def _graph_size_stats(dataset):
 
 def _write_dataset_stats(dataset, loader: str, path_csv: str,
                          project_dir: Path):
-    """Persist graph-size and BRICS-exclusion stats to dataset_stats.json."""
+    """Persist graph-size and exclusion stats to dataset_stats.json."""
     stats = {"loader": loader,
              "source_csv": str(path_csv),
              "graph_size": _graph_size_stats(dataset)}
     if loader == "decompose" and hasattr(dataset, "exclusion_summary"):
-        stats["brics_exclusion"] = dataset.exclusion_summary()
+        stats["decomposition"] = getattr(dataset, "method", None)
+        stats["decomposition_exclusion"] = dataset.exclusion_summary()
     with open(project_dir / "dataset_stats.json", "w") as fh:
         json.dump(stats, fh, indent=2)
 
