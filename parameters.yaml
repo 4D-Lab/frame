@@ -41,8 +41,8 @@ Tune:
   gcn_improved:                        # GCN self-loop weighting (A + 2I)
     value: true
   gin_norm:                            # GIN norm: batch | layer | graph | pair
-    # choices: [batch, layer, graph, pair]
-    value: batch
+    choices: [batch, layer, graph, pair]
+    # value: batch
   heads:                               # GAT attention heads
     min: 1
     max: 4
