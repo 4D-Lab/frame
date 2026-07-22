@@ -103,11 +103,55 @@ def _bootstrap_ci(values: np.ndarray, n_boot: int = 1000,
     return (lo, hi)
 
 
+def hit_rate_from_labels(labels: Sequence[set],
+                         class_names: Sequence[str],
+                         n_boot: int = 1000):
+    """Hit rate over pre-computed per-molecule class label sets.
+
+    Use with :func:`frame.source.explain.pharmacophores.classify_fragment`,
+    which matches SMARTS on the intact molecule and can return several
+    classes for one fragment. A molecule counts as a hit when its top
+    fragment carries at least one class.
+
+    Args:
+        labels: One set of class names per molecule; empty set means
+            the top fragment carried no pharmacophore.
+        class_names: All valid class names, so the per-class breakdown
+            lists classes that never matched.
+        n_boot: Bootstrap resamples for the overall-rate CI.
+
+    Returns:
+        Dict with keys overall, ci_low, ci_high, per_class (mapping
+        class name -> fraction of molecules whose top fragment carried
+        that class), and n. Per-class values may sum above overall
+        because a fragment can carry several classes.
+    """
+    n = len(labels)
+    if n == 0:
+        return {"overall": 0.0, "ci_low": 0.0, "ci_high": 0.0,
+                "per_class": {c: 0.0 for c in class_names},
+                "n": 0}
+
+    matches = np.array([1 if lab else 0 for lab in labels], dtype=float)
+    per_class = {c: sum(1 for lab in labels if c in lab) / n
+                 for c in class_names}
+    lo, hi = _bootstrap_ci(matches, n_boot=n_boot)
+
+    return {"overall": float(matches.mean()),
+            "ci_low": lo,
+            "ci_high": hi,
+            "per_class": per_class,
+            "n": n}
+
+
 def fragment_hit_rate(top_fragments: Sequence[str],
                       classifier: Callable[[str], str],
                       class_names: Sequence[str],
                       n_boot: int = 1000):
     """Fraction of molecules whose top fragment matches a known class.
+
+    Deprecated: classifies fragment SMILES in isolation. Prefer
+    :func:`hit_rate_from_labels` with parent-molecule matching.
 
     Args:
         top_fragments: One fragment SMILES per molecule (the argmax of

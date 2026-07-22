@@ -44,10 +44,12 @@ class DecomposeDataset(InMemoryDataset):
     """Fragment-level molecular dataset with edge features.
 
     Fragments become graph nodes; edges carry the chemistry of the
-    bond(s) connecting two fragments (see frag_edges.py). Two backends
-    are available via ``method``:
+    bond(s) connecting two fragments (see frag_edges.py). Two
+    backends are available via ``method``:
 
-    - ``"ertl"`` (default): functional groups stay intact as nodes and
+    - ``"ertl"``: ring-aware Ertl functional-group decomposition. Rings
+      are never cut and functional groups keep their carbons, so
+      fragments stay matchable against pharmacophore SMARTS, and
       molecules are essentially never excluded.
     - ``"brics"``: original BRICS retrosynthetic fragmentation;
       molecules with no BRICS-cleavable bond are skipped.
