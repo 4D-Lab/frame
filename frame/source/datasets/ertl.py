@@ -14,8 +14,8 @@ pharmacophore SMARTS, so this module repairs them:
   the union-find pass can no longer merge whole ring systems into one
   oversized node.
 * An acyclic functional group absorbs its neighbouring carbons, so
-  hydroxyls and amines become ``CO`` / ``CN`` nodes instead of bare
-  ``O`` / ``N`` heteroatoms.
+  hydroxyls and amines become CO / CN nodes instead of bare
+  O / N heteroatoms.
 
 Fragment SMILES are written in aromatic form when possible and fall
 back to a kekulized copy only for subsets RDKit cannot re-parse.
@@ -34,14 +34,14 @@ class _Union:
         self.parent = list(range(size))
 
     def find(self, x: int):
-        """Return the representative of ``x``."""
+        """Return the representative of x."""
         while self.parent[x] != x:
             self.parent[x] = self.parent[self.parent[x]]
             x = self.parent[x]
         return x
 
     def union(self, a: int, b: int):
-        """Merge the sets containing ``a`` and ``b``."""
+        """Merge the sets containing a and b."""
         self.parent[self.find(a)] = self.find(b)
 
 
@@ -84,7 +84,7 @@ def _place_functional_group(mol, group, node_of: list[int],
 
     Args:
         mol: Parent molecule.
-        group: One ``rdkit.Contrib.IFG.ifg`` result.
+        group: One rdkit.Contrib.IFG.ifg result.
         node_of: Atom-indexed node ids, filled in place.
         next_node: First free node id.
 
@@ -117,7 +117,7 @@ def _merge_leftover_atoms(mol, node_of: list[int], next_node: int):
 
     Args:
         mol: Parent molecule.
-        node_of: Atom-indexed node ids; ``-1`` marks leftover atoms.
+        node_of: Atom-indexed node ids; -1 marks leftover atoms.
         next_node: First free node id.
 
     Returns:
@@ -146,7 +146,7 @@ def _fragment_smiles(mol, kek_mol, atoms: list[int]):
 
     The aromatic form is tried first so intact rings stay aromatic; a
     kekulized copy is the fallback for subsets that RDKit writes as
-    unparseable aromatic SMILES (e.g. ``"cc"``).
+    unparseable aromatic SMILES (e.g. "cc").
 
     Args:
         mol: Parent molecule.
@@ -154,7 +154,7 @@ def _fragment_smiles(mol, kek_mol, atoms: list[int]):
         atoms: Atom indices belonging to this fragment.
 
     Returns:
-        Canonical SMILES string that ``Chem.MolFromSmiles`` accepts.
+        Canonical SMILES string that Chem.MolFromSmiles accepts.
 
     Raises:
         ValueError: If neither form can be parsed back.

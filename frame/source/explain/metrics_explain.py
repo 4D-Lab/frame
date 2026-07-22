@@ -56,8 +56,8 @@ def gini(values: np.ndarray):
 def gini_corrected(values: np.ndarray):
     """Gini normalised by the maximum attainable at this vector length.
 
-    The Gini coefficient over ``n`` items is bounded above by
-    ``(n - 1) / n``, so raw values are not comparable between
+    The Gini coefficient over n items is bounded above by
+    (n - 1) / n, so raw values are not comparable between
     representations of different granularity: a 32-atom graph can reach
     0.97 while a 6-fragment graph caps at 0.83. Dividing by that bound
     makes attribution concentration comparable across representations.

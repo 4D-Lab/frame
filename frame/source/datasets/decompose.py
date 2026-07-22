@@ -14,6 +14,7 @@ from torch_geometric.data.data import DataEdgeAttr, DataTensorAttr
 from frame.source.datasets.ertl import get_map_ertl
 from frame.source.datasets.brics import get_map_brics
 from frame.source.datasets.frag_edges import edge_dim
+from frame.source.datasets.features import ATOM_FEAT_DIM, atom_features
 
 random.seed(8)
 np.random.seed(8)
@@ -22,19 +23,6 @@ lg = RDLogger.logger()
 lg.setLevel(RDLogger.CRITICAL)
 torch.serialization.add_safe_globals([DataEdgeAttr, DataTensorAttr,
                                       GlobalStorage, Data])
-
-HYBRD = [Chem.rdchem.HybridizationType.S,
-         Chem.rdchem.HybridizationType.SP,
-         Chem.rdchem.HybridizationType.SP2,
-         Chem.rdchem.HybridizationType.SP3,
-         Chem.rdchem.HybridizationType.SP3D,
-         Chem.rdchem.HybridizationType.SP3D2,
-         "other"]
-STEREOS = [Chem.rdchem.BondStereo.STEREONONE,
-           Chem.rdchem.BondStereo.STEREOANY,
-           Chem.rdchem.BondStereo.STEREOZ,
-           Chem.rdchem.BondStereo.STEREOE]
-SYMBOLS = ["C", "N", "O", "F", "P", "S", "Cl", "Br", "I", "R"]
 
 # Available decomposition backends
 _DECOMPOSERS = {"brics": get_map_brics, "ertl": get_map_ertl}
@@ -45,13 +33,13 @@ class DecomposeDataset(InMemoryDataset):
 
     Fragments become graph nodes; edges carry the chemistry of the
     bond(s) connecting two fragments (see frag_edges.py). Two
-    backends are available via ``method``:
+    backends are available via method:
 
-    - ``"ertl"``: ring-aware Ertl functional-group decomposition. Rings
+    - "ertl": ring-aware Ertl functional-group decomposition. Rings
       are never cut and functional groups keep their carbons, so
       fragments stay matchable against pharmacophore SMARTS, and
       molecules are essentially never excluded.
-    - ``"brics"``: original BRICS retrosynthetic fragmentation;
+    - "brics": original BRICS retrosynthetic fragmentation;
       molecules with no BRICS-cleavable bond are skipped.
 
     The SMILES and ids of skipped molecules are kept on the dataset so
@@ -122,10 +110,8 @@ class DecomposeDataset(InMemoryDataset):
                 self.excluded_ids.append(mol_idx)
                 continue
 
-            xs = []
-            for frag in frags:
-                xs.append(_gen_features(frag))
-            x = torch.stack(xs, dim=0)
+            mol = Chem.MolFromSmiles(mol_smiles)
+            x = _fragment_features(mol, atom_map, len(frags))
 
             mapping = [list(atom_map.keys()), list(atom_map.values())]
 
@@ -184,40 +170,36 @@ class DecomposeDataset(InMemoryDataset):
         pass
 
 
-def _gen_features(smiles):
-    mol = Chem.MolFromSmiles(smiles)
+def _fragment_features(mol, atom_map: dict, n_frags: int):
+    """Sum intact-molecule atom features over each fragment.
 
-    xs = []
+    Atoms are described as they exist in the parent molecule, so the
+    bonds the decomposition severs do not change any atom's degree,
+    hybridisation, hydrogen count, aromaticity or CIP code. Reading the
+    features off a re-sanitised fragment instead would let RDKit refill
+    the broken valence with hydrogen, so an amide nitrogen would be
+    encoded as ammonia and an attachment point as a terminal atom.
+
+    Args:
+        mol: Parent RDKit Mol whose atom indices are the keys of
+            atom_map.
+        atom_map: Mapping of atom index to fragment index, as returned
+            by the decomposition backend. Must cover every atom.
+        n_frags: Number of fragments, giving the number of rows.
+
+    Returns:
+        torch.Tensor of shape (n_frags, ATOM_FEAT_DIM) holding
+        one summed feature vector per fragment.
+
+    Raises:
+        ValueError: If atom_map does not cover every atom of
+            mol, which would silently drop atoms from the sums.
+    """
+    if len(atom_map) != mol.GetNumAtoms():
+        raise ValueError(f"atom_map covers {len(atom_map)} atoms but mol "
+                         f"has {mol.GetNumAtoms()}")
+
+    x = torch.zeros((n_frags, ATOM_FEAT_DIM), dtype=torch.float)
     for atom in mol.GetAtoms():
-        symbol = [0.] * len(SYMBOLS)
-        try:
-            symbol[SYMBOLS.index(atom.GetSymbol())] = 1.
-        except ValueError:
-            symbol[SYMBOLS.index("R")] = 1.
-        degree = [0.] * 6
-        try:
-            degree[atom.GetDegree()] = 1.
-        except IndexError:
-            degree[5] = 1.
-        formal_charge = atom.GetFormalCharge()
-        radical_electrons = atom.GetNumRadicalElectrons()
-        hybridization = [0.] * len(HYBRD)
-        hybridization[HYBRD.index(
-            atom.GetHybridization())] = 1.
-        aromaticity = 1. if atom.GetIsAromatic() else 0.
-        hydrogens = [0.] * 5
-        hydrogens[atom.GetTotalNumHs()] = 1.
-        chirality = 1. if atom.HasProp("_ChiralityPossible") else 0.
-        chirality_type = [0.] * 2
-        if atom.HasProp("_CIPCode"):
-            chirality_type[["R", "S"].index(atom.GetProp("_CIPCode"))] = 1.
-
-        x = torch.tensor(symbol + degree + [formal_charge] +
-                         [radical_electrons] + hybridization +
-                         [aromaticity] + hydrogens + [chirality] +
-                         chirality_type)
-        xs.append(x)
-    frag_x = torch.stack(xs, dim=0)
-
-    agg_x = torch.sum(frag_x, dim=0)
-    return agg_x
+        x[atom_map[atom.GetIdx()]] += atom_features(atom)
+    return x

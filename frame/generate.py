@@ -86,6 +86,58 @@ def _degree_histogram(dataset, max_bins: int = 512):
     return deg
 
 
+def _feature_scale(dataset, eps: float = 1e-6):
+    """Per-column max absolute node-feature value over the training split.
+
+    Max-abs is used rather than a z-score for two reasons. Most columns
+    are one-hot indicators whose standard deviation is tiny for a rare
+    element, so dividing by it amplifies that column by two orders of
+    magnitude; dividing by the max leaves every indicator column exactly
+    as it was. And it maps zero to zero, so the all-zero Integrated
+    Gradients baseline keeps its meaning of "nothing present" instead of
+    silently becoming "an average fragment".
+
+    The scale comes from the training graphs only, so no test-set
+    information reaches the transform.
+
+    Args:
+        dataset: In-memory dataset of PyG Data objects, each
+            carrying a set attribute.
+        eps: Value below which a column is treated as all-zero and left
+            unscaled. Defaults to 1e-6.
+
+    Returns:
+        Tensor of shape (n_features,) of per-column divisors.
+    """
+    graphs = [d for d in dataset if getattr(d, "set", None) == "train"]
+    if not graphs:
+        graphs = list(dataset)
+    x = torch.cat([d.x for d in graphs], dim=0).float()
+    scale = x.abs().max(dim=0).values
+    scale[scale < eps] = 1.0
+    return scale
+
+
+def _scale_features(dataset, scale):
+    """Divide node features in place by the given per-column scale.
+
+    Atom-level features are one-hot indicators bounded in [-1, 1] while
+    fragment-level features are unbounded atom counts reaching 28, so
+    without this the two encodings reach the model on scales an order of
+    magnitude apart and the comparison confounds the representation with
+    its input scale. Atom-level columns have a max of 1 and so pass
+    through unchanged.
+
+    Args:
+        dataset: In-memory dataset whose collated store is rewritten.
+        scale: Per-column divisors from _feature_scale.
+    """
+    store = getattr(dataset, "_data", None)
+    if store is None:
+        store = dataset.data
+    store.x = store.x.float() / scale
+
+
 def main():
     args_parser = argparse.ArgumentParser()
     args_parser.add_argument("-c", "--config", dest="config", required=True)
@@ -128,11 +180,22 @@ def main():
                 "project_dir": project_dir,
                 "deg": _degree_histogram(dataset)}
 
+    # Node-feature scaling, from the training split only.
+    normalize = params["Data"].get("normalize_features", True)
+    feat_scale = _feature_scale(dataset) if normalize else None
+    metadata["normalize_features"] = normalize
+    metadata["feat_scale"] = feat_scale
+
     # Iterating the dataset (stats, degree histogram) fills PyG's
     # InMemoryDataset _data_list cache with per-graph tensor views
     # into the collated store; persisting that cache would bloat the
     # joblib ~N-fold. Reset it so only the compact store is serialized.
     dataset._data_list = None
+
+    # Applied after the cache reset so the cached views, which point at
+    # the pre-scaling tensor, cannot be handed out afterwards.
+    if normalize:
+        _scale_features(dataset, feat_scale)
 
     dump_data = {"dataset": dataset, "metadata": metadata}
     joblib.dump(dump_data, project_dir / "data.joblib")

@@ -52,10 +52,10 @@ def get_queries(name: str):
     """Return the compiled (class_name, query) pairs for a registry.
 
     Args:
-        name: ``"bace"`` or ``"mpro"`` (case-insensitive).
+        name: "bace" or "mpro" (case-insensitive).
 
     Returns:
-        Tuple of ``(class_name, rdkit.Chem.Mol)`` query pairs.
+        Tuple of (class_name, rdkit.Chem.Mol) query pairs.
 
     Raises:
         ValueError: If the registry has no SMARTS definition. BBBP is
@@ -73,10 +73,10 @@ def pharmacophore_instances(mol, name: str):
 
     Args:
         mol: RDKit molecule (the parent, not a fragment).
-        name: Registry name, ``"bace"`` or ``"mpro"``.
+        name: Registry name, "bace" or "mpro".
 
     Returns:
-        List of ``(class_name, frozenset_of_atom_indices)`` pairs, one
+        List of (class_name, frozenset_of_atom_indices) pairs, one
         per substructure match. A molecule may yield several matches of
         the same class.
 
@@ -93,24 +93,24 @@ def pharmacophore_instances(mol, name: str):
 def classify_fragment(mol, atoms, name: str, mode: str = "strict"):
     """Classify one fragment using parent-molecule SMARTS matches.
 
-    The fragment is described by its atom indices in ``mol``, so every
+    The fragment is described by its atom indices in mol, so every
     atom keeps the hydrogen count, aromaticity and substitution it has
     in the real molecule.
 
     Args:
         mol: Parent RDKit molecule.
         atoms: Atom indices belonging to the fragment.
-        name: Registry name, ``"bace"`` or ``"mpro"``.
-        mode: ``"strict"`` requires every atom of a match to lie inside
-            the fragment. ``"anchored"`` also accepts a match whose
+        name: Registry name, "bace" or "mpro".
+        mode: "strict" requires every atom of a match to lie inside
+            the fragment. "anchored" also accepts a match whose
             majority of atoms lie inside, which tolerates motifs that
-            straddle a cut. Defaults to ``"strict"``.
+            straddle a cut. Defaults to "strict".
 
     Returns:
         Set of class names carried by the fragment; empty if none.
 
     Raises:
-        ValueError: If ``mode`` is not a member of ``MATCH_MODES``.
+        ValueError: If mode is not a member of MATCH_MODES.
 
     Example:
         >>> mol = Chem.MolFromSmiles("O=C1NCCC1CO")
@@ -159,7 +159,7 @@ def classify_bbbp_fragment(mol, atoms,
         threshold: TPSA cutoff in Angstrom^2. Defaults to 30.0.
 
     Returns:
-        ``"low_tpsa"`` or ``"high_tpsa"``.
+        "low_tpsa" or "high_tpsa".
     """
     if fragment_tpsa(mol, atoms) < threshold:
         return "low_tpsa"
