@@ -17,10 +17,12 @@ def train_one_seed(seed: int, train_data: list, valid_loader: DataLoader,
                    batch_size: int, workers: int):
     """Train a fresh model under a fixed seed and return its best state.
 
-    Reseeds the global RNGs and pins the train DataLoader's shuffle
-    generator so that two calls with the same seed produce the same
-    trajectory. The valid loader is reused across seeds since it does not
-    shuffle.
+    Reseeds the global RNGs, pins the train DataLoader's shuffle
+    generator and seeds its worker processes, so that two calls with the
+    same seed produce the same trajectory. The valid loader is reused
+    across seeds since it does not shuffle. Bit-reproducibility also
+    requires train.set_deterministic() to have been called, otherwise
+    CUDA scatter kernels reintroduce run-to-run jitter.
 
     Args:
         seed: Integer used to reseed Python/NumPy/Torch RNGs and the
@@ -53,7 +55,8 @@ def train_one_seed(seed: int, train_data: list, valid_loader: DataLoader,
     generator.manual_seed(seed)
     train_loader = DataLoader(train_data, batch_size=batch_size,
                               shuffle=True, num_workers=workers,
-                              generator=generator)
+                              generator=generator,
+                              worker_init_fn=train_pkg.seed_worker)
 
     model, optim, schdlr, lossfn = models.model_setup(model_name, config,
                                                       epochs=epochs)

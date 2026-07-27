@@ -12,6 +12,7 @@ import numpy as np
 from torch_geometric.loader import DataLoader
 
 from frame.source import models
+from frame.source import train as train_pkg
 from frame.source.train import runner
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -122,7 +123,9 @@ def main():
     with open(args.config) as stream:
         params = yaml.safe_load(stream)
 
-    # * Initialize
+    # Initialize determinism
+    train_pkg.set_deterministic()
+
     name = params["Data"]["name"]
     if name.lower() == "none":
         name = str(uuid.uuid4()).split("-")[0]
