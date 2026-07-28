@@ -10,11 +10,21 @@ lg.setLevel(RDLogger.CRITICAL)
 
 
 def _scaffold(smiles, include_chirality=False):
+    """Murcko scaffold SMILES, or "" when it cannot be derived.
+
+    Stripping side chains can leave a double bond whose stereo-defining
+    atoms are gone, which makes RDKit raise instead of returning a
+    scaffold. Those molecules fall back to the same empty-scaffold group
+    as unparseable SMILES rather than aborting the whole split.
+    """
     mol = Chem.MolFromSmiles(smiles)
     if mol is None:
         return ""
-    return MurckoScaffold.MurckoScaffoldSmiles(
-        mol=mol, includeChirality=include_chirality)
+    try:
+        return MurckoScaffold.MurckoScaffoldSmiles(
+            mol=mol, includeChirality=include_chirality)
+    except RuntimeError:
+        return ""
 
 
 def scaffold_split(smiles_list, fracs=(0.8, 0.1, 0.1),
