@@ -15,6 +15,7 @@ import plotly.graph_objects as go
 from torch_geometric.loader import DataLoader
 
 from frame.source import models, utils
+from frame.source import train as train_pkg
 from frame.source.train import runner
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -128,6 +129,39 @@ def objective(trial, params, dataset):
                 raise optuna.exceptions.TrialPruned()
 
 
+def _build_sampler(project_dir: Path):
+    """Restore the persisted sampler, or build a fresh seeded TPE one.
+
+    Optuna stores trials but not the sampler's RNG state, so resuming a
+    study with a newly constructed sampler replays the draw sequence
+    from its beginning against a database that already holds N trials.
+    The resulting search silently diverges from an uninterrupted run.
+    Reloading the pickled sampler keeps the stream continuous.
+
+    Args:
+        project_dir: Study directory holding the pickled sampler.
+
+    Returns:
+        A TPESampler seeded, resumed from disk when a previous run
+        left a checkpoint there.
+    """
+    path = project_dir / "sampler.pkl"
+    if path.is_file():
+        logger.info(f"Resuming sampler state from {path}")
+        return joblib.load(path)
+
+    return optuna.samplers.TPESampler(seed=8)
+
+
+def _run_study(study, params: dict, dataset: list, trials: int,
+               project_dir: Path):
+    """Optimize one trial at a time, checkpointing the sampler state."""
+    while len(study.trials) < trials:
+        study.optimize(lambda trial: objective(trial, params, dataset),
+                       n_trials=1)
+        joblib.dump(study.sampler, project_dir / "sampler.pkl")
+
+
 def _build_dimension(col: str, series: pd.Series):
     if pd.api.types.is_numeric_dtype(series):
         values = series.values
@@ -185,7 +219,9 @@ def main():
     with open(args.config) as stream:
         params = yaml.safe_load(stream)
 
-    # * Initialize
+    # Initialize determinism
+    train_pkg.set_deterministic()
+
     task = params["Data"]["task"]
     name = params["Data"]["name"]
     if name.lower() == "none":
@@ -214,12 +250,12 @@ def main():
     trials = params["Data"]["trials"]
     url_db = f"sqlite:///{project_dir / 'optuna_study.db'}"
 
+    sampler = _build_sampler(project_dir)
     storage = optuna.storages.RDBStorage(url=url_db)
     study = optuna.create_study(study_name=name, direction="maximize",
-                                storage=storage, load_if_exists=True)
-    while len(study.trials) <= trials:
-        study.optimize(lambda trial: objective(trial, params, dataset),
-                       n_trials=1)
+                                storage=storage, load_if_exists=True,
+                                sampler=sampler)
+    _run_study(study, params, dataset, trials, project_dir)
 
     if study.study_name == name:
         df = get_dataframe(study, task)

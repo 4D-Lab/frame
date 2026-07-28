@@ -1,3 +1,4 @@
+import os
 import random
 
 import torch
@@ -21,6 +22,31 @@ def set_seed(seed):
     if torch.cuda.is_available():
         torch.cuda.manual_seed(seed)
         torch.cuda.manual_seed_all(seed)
+
+
+def set_deterministic():
+    """Force bit-reproducible CUDA kernels for message passing.
+    """
+    os.environ.setdefault("CUBLAS_WORKSPACE_CONFIG", ":4096:8")
+
+    cudnn.deterministic = True
+    cudnn.benchmark = False
+    torch.use_deterministic_algorithms(True)
+
+
+def seed_worker(worker_id: int):
+    """Seed Python and NumPy RNGs inside a DataLoader worker process.
+
+    Torch seeds each worker's own generator from the loader generator,
+    but leaves random and numpy seeded per process start. Any
+    augmentation reaching for those would otherwise vary between runs.
+
+    Args:
+        worker_id: Index of the worker, supplied by the DataLoader.
+    """
+    seed = (torch.initial_seed() + worker_id) % (2 ** 32)
+    random.seed(seed)
+    np.random.seed(seed)
 
 
 def train_epoch(model, optim, lossfn, loader, grad_clip_norm=None,
