@@ -11,7 +11,6 @@ Data:
   batch_size: 128                      # graphs per mini-batch
   patience: 15                         # early-stopping patience (epochs)
   loader: default                      # default | decompose
-  method: brics                        # brics | ertl (loader decompose only)
   normalize_features: true             # max-abs scale node feats (train split)
   grad_clip_norm: 1.0                  # max grad-norm (0/None disables)
   drop_edge_p: 0.0                     # train-time edge drop probability

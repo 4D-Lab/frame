@@ -38,7 +38,7 @@ def seed_worker(worker_id: int):
     """Seed Python and NumPy RNGs inside a DataLoader worker process.
 
     Torch seeds each worker's own generator from the loader generator,
-    but leaves ``random`` and ``numpy`` seeded per process start. Any
+    but leaves random and numpy seeded per process start. Any
     augmentation reaching for those would otherwise vary between runs.
 
     Args:

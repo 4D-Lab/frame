@@ -11,9 +11,7 @@ from torch_geometric.data import InMemoryDataset
 from torch_geometric.data.storage import GlobalStorage
 from torch_geometric.data.data import DataEdgeAttr, DataTensorAttr
 
-from frame.source.datasets.ertl import get_map_ertl
 from frame.source.datasets.brics import get_map_brics
-from frame.source.datasets.frag_edges import edge_dim
 from frame.source.datasets.features import ATOM_FEAT_DIM, atom_features
 
 random.seed(8)
@@ -24,45 +22,27 @@ lg.setLevel(RDLogger.CRITICAL)
 torch.serialization.add_safe_globals([DataEdgeAttr, DataTensorAttr,
                                       GlobalStorage, Data])
 
-# Available decomposition backends
-_DECOMPOSERS = {"brics": get_map_brics, "ertl": get_map_ertl}
-
 
 class DecomposeDataset(InMemoryDataset):
-    """Fragment-level molecular dataset with edge features.
+    """BRICS fragment-level molecular dataset.
 
-    Fragments become graph nodes; edges carry the chemistry of the
-    bond(s) connecting two fragments (see frag_edges.py). Two
-    backends are available via method:
+    Fragments become graph nodes and a fragment-fragment edge is drawn
+    for every BRICS-cleaved bond. Edges are unfeatured: each carries a
+    constant 1.0 placeholder.
 
-    - "ertl": ring-aware Ertl functional-group decomposition. Rings
-      are never cut and functional groups keep their carbons, so
-      fragments stay matchable against pharmacophore SMARTS, and
-      molecules are essentially never excluded.
-    - "brics": original BRICS retrosynthetic fragmentation;
-      molecules with no BRICS-cleavable bond are skipped.
-
-    The SMILES and ids of skipped molecules are kept on the dataset so
-    frame.generate can report the exclusion rate.
+    Molecules with no BRICS-cleavable bond cannot be decomposed and are
+    skipped. The SMILES and ids of skipped molecules are kept on the
+    dataset so frame.generate can report the exclusion rate.
 
     Attributes:
-        excluded_smiles: SMILES strings of molecules that could not be
-            decomposed by the chosen backend.
+        excluded_smiles: SMILES strings of molecules skipped because
+            BRICS could not decompose them.
         excluded_ids: Aligned list of dataset ids.
         n_total: Total number of input rows (incl. excluded).
     """
 
-    def __init__(self, path: str, method: str = "brics",
-                 extended_edges: bool = True,
-                 transform=None, pre_transform=None):
+    def __init__(self, path: str, transform=None, pre_transform=None):
         self.path = path
-        if method not in _DECOMPOSERS:
-            raise ValueError(f"method must be one of {list(_DECOMPOSERS)}, "
-                             f"got {method!r}")
-        self.method = method
-        self.extended_edges = extended_edges
-        self._get_map = _DECOMPOSERS[method]
-        self.edge_dim = edge_dim(extended_edges)
         self.excluded_smiles = []
         self.excluded_ids = []
         self.n_total = 0
@@ -103,8 +83,7 @@ class DecomposeDataset(InMemoryDataset):
             mol_idx = line[col_id]
 
             # Create graph object
-            frags, frag_map, atom_map, edge_feats = self._get_map(
-                mol_smiles, extended=self.extended_edges)
+            frags, frag_map, atom_map = get_map_brics(mol_smiles)
             if frags is None:
                 self.excluded_smiles.append(mol_smiles)
                 self.excluded_ids.append(mol_idx)
@@ -115,25 +94,20 @@ class DecomposeDataset(InMemoryDataset):
 
             mapping = [list(atom_map.keys()), list(atom_map.values())]
 
-            # Bidirectional edges; each undirected pair keeps its feature
-            # vector on both directions.
+            # Bidirectional edges, each carrying a constant placeholder.
             edges = []
-            feats = []
-            for (u, v), feat in zip(frag_map, edge_feats):
+            for u, v in frag_map:
                 edges.append((u, v))
                 edges.append((v, u))
-                feats.append(feat)
-                feats.append(feat)
 
             if len(edges) == 0:
                 # Single-fragment molecule: no edges.
                 edge_index = torch.zeros((2, 0), dtype=torch.long)
-                edge_attr = torch.zeros((0, self.edge_dim),
-                                        dtype=torch.float)
+                edge_attr = torch.zeros((0, 1), dtype=torch.float)
             else:
                 edge_index = torch.tensor(edges, dtype=torch.long)
                 edge_index = edge_index.t().contiguous()
-                edge_attr = torch.tensor(feats, dtype=torch.float)
+                edge_attr = torch.ones(edge_index.size(1), 1)
 
             data = Data(x=x, edge_index=edge_index,
                         edge_attr=edge_attr, y=y,

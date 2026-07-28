@@ -44,7 +44,6 @@ def _write_dataset_stats(dataset, loader: str, path_csv: str,
              "source_csv": str(path_csv),
              "graph_size": _graph_size_stats(dataset)}
     if loader == "decompose" and hasattr(dataset, "exclusion_summary"):
-        stats["decomposition"] = getattr(dataset, "method", None)
         stats["decomposition_exclusion"] = dataset.exclusion_summary()
     with open(project_dir / "dataset_stats.json", "w") as fh:
         json.dump(stats, fh, indent=2)
@@ -149,7 +148,6 @@ def main():
     name = params["Data"].get("name", None)
     path_csv = params["Data"].get("path_csv", None)
     loader = params["Data"].get("loader", "default").lower()
-    method = params["Data"].get("method", "brics").lower()
 
     if name.lower() == "none":
         name = str(uuid.uuid4()).split("-")[0]
@@ -163,7 +161,7 @@ def main():
     if loader == "default":
         dataset = datasets.MolecularDataset(path_csv)
     elif loader == "decompose":
-        dataset = datasets.DecomposeDataset(path_csv, method)
+        dataset = datasets.DecomposeDataset(path_csv)
     else:
         raise NotImplementedError("Loader not available")
 
