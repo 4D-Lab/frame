@@ -10,8 +10,6 @@ from torch_geometric.utils import dropout_edge
 from frame.source.train import metrics as reg_metrics
 
 
-cudnn.deterministic = True
-cudnn.benchmark = False
 device = "cuda" if torch.cuda.is_available() else "cpu"
 
 

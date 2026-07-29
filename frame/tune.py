@@ -15,7 +15,6 @@ import plotly.graph_objects as go
 from torch_geometric.loader import DataLoader
 
 from frame.source import models, utils
-from frame.source import train as train_pkg
 from frame.source.train import runner
 
 device = "cuda" if torch.cuda.is_available() else "cpu"
@@ -129,37 +128,35 @@ def objective(trial, params, dataset):
                 raise optuna.exceptions.TrialPruned()
 
 
-def _build_sampler(project_dir: Path):
-    """Restore the persisted sampler, or build a fresh seeded TPE one.
+def _build_sampler():
+    """Build a TPE sampler suited to several workers sharing one study.
 
-    Optuna stores trials but not the sampler's RNG state, so resuming a
-    study with a newly constructed sampler replays the draw sequence
-    from its beginning against a database that already holds N trials.
-    The resulting search silently diverges from an uninterrupted run.
-    Reloading the pickled sampler keeps the stream continuous.
+    Left unseeded on purpose. Workers run as independent processes, so a
+    fixed seed makes every one of them replay the same draw sequence and
+    propose identical points, collapsing the search to a single trial's
+    worth of exploration.
 
-    Args:
-        project_dir: Study directory holding the pickled sampler.
+    constant_liar penalises points that another worker already has
+    in flight, so concurrent workers spread out instead of crowding the
+    same region of the space.
 
     Returns:
-        A TPESampler seeded, resumed from disk when a previous run
-        left a checkpoint there.
+        A TPESampler configured for distributed optimization.
     """
-    path = project_dir / "sampler.pkl"
-    if path.is_file():
-        logger.info(f"Resuming sampler state from {path}")
-        return joblib.load(path)
-
-    return optuna.samplers.TPESampler(seed=8)
+    return optuna.samplers.TPESampler(constant_liar=True)
 
 
-def _run_study(study, params: dict, dataset: list, trials: int,
-               project_dir: Path):
-    """Optimize one trial at a time, checkpointing the sampler state."""
+def _run_study(study, params: dict, dataset: list, trials: int):
+    """Optimize one trial at a time until the study reaches its target.
+
+    The sampler carries no state worth persisting: TPE refits from the
+    trials in storage on every call, so its RNG is all that a checkpoint
+    would capture, and reloading one shared RNG into every worker is
+    what puts them back in lockstep.
+    """
     while len(study.trials) < trials:
         study.optimize(lambda trial: objective(trial, params, dataset),
                        n_trials=1)
-        joblib.dump(study.sampler, project_dir / "sampler.pkl")
 
 
 def _build_dimension(col: str, series: pd.Series):
@@ -219,9 +216,6 @@ def main():
     with open(args.config) as stream:
         params = yaml.safe_load(stream)
 
-    # Initialize determinism
-    train_pkg.set_deterministic()
-
     task = params["Data"]["task"]
     name = params["Data"]["name"]
     if name.lower() == "none":
@@ -250,12 +244,12 @@ def main():
     trials = params["Data"]["trials"]
     url_db = f"sqlite:///{project_dir / 'optuna_study.db'}"
 
-    sampler = _build_sampler(project_dir)
+    sampler = _build_sampler()
     storage = optuna.storages.RDBStorage(url=url_db)
     study = optuna.create_study(study_name=name, direction="maximize",
                                 storage=storage, load_if_exists=True,
                                 sampler=sampler)
-    _run_study(study, params, dataset, trials, project_dir)
+    _run_study(study, params, dataset, trials)
 
     if study.study_name == name:
         df = get_dataframe(study, task)
