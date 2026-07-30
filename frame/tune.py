@@ -128,37 +128,6 @@ def objective(trial, params, dataset):
                 raise optuna.exceptions.TrialPruned()
 
 
-def _build_sampler():
-    """Build a TPE sampler suited to several workers sharing one study.
-
-    Left unseeded on purpose. Workers run as independent processes, so a
-    fixed seed makes every one of them replay the same draw sequence and
-    propose identical points, collapsing the search to a single trial's
-    worth of exploration.
-
-    constant_liar penalises points that another worker already has
-    in flight, so concurrent workers spread out instead of crowding the
-    same region of the space.
-
-    Returns:
-        A TPESampler configured for distributed optimization.
-    """
-    return optuna.samplers.TPESampler(constant_liar=True)
-
-
-def _run_study(study, params: dict, dataset: list, trials: int):
-    """Optimize one trial at a time until the study reaches its target.
-
-    The sampler carries no state worth persisting: TPE refits from the
-    trials in storage on every call, so its RNG is all that a checkpoint
-    would capture, and reloading one shared RNG into every worker is
-    what puts them back in lockstep.
-    """
-    while len(study.trials) < trials:
-        study.optimize(lambda trial: objective(trial, params, dataset),
-                       n_trials=1)
-
-
 def _build_dimension(col: str, series: pd.Series):
     if pd.api.types.is_numeric_dtype(series):
         values = series.values
@@ -216,6 +185,7 @@ def main():
     with open(args.config) as stream:
         params = yaml.safe_load(stream)
 
+    # * Initialize
     task = params["Data"]["task"]
     name = params["Data"]["name"]
     if name.lower() == "none":
@@ -244,12 +214,12 @@ def main():
     trials = params["Data"]["trials"]
     url_db = f"sqlite:///{project_dir / 'optuna_study.db'}"
 
-    sampler = _build_sampler()
     storage = optuna.storages.RDBStorage(url=url_db)
     study = optuna.create_study(study_name=name, direction="maximize",
-                                storage=storage, load_if_exists=True,
-                                sampler=sampler)
-    _run_study(study, params, dataset, trials)
+                                storage=storage, load_if_exists=True)
+    while len(study.trials) <= trials:
+        study.optimize(lambda trial: objective(trial, params, dataset),
+                       n_trials=1)
 
     if study.study_name == name:
         df = get_dataframe(study, task)

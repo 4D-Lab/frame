@@ -22,9 +22,10 @@ ATOM_FEAT_DIM = (len(SYMBOLS) + 6 + 1 + 1 + len(HYBRD) + 1 + 5 + 1 + 2)
 def atom_features(atom):
     """Encode one RDKit atom as a 34-dimensional feature vector.
 
-    Elements outside SYMBOLS fall into the catch-all "R" slot and
-    hybridisations outside HYBRD into its "other" slot, so an
-    unusual atom degrades gracefully instead of raising.
+    Elements outside SYMBOLS fall into the catch-all "R" slot. No such
+    fallback exists for hybridisation or hydrogen count: a
+    hybridisation outside HYBRD or more than four hydrogens raises,
+    matching the encoding used for the published results.
 
     Args:
         atom: RDKit Atom. Read from the molecule it belongs to, so
@@ -33,6 +34,11 @@ def atom_features(atom):
 
     Returns:
         torch.Tensor of shape (ATOM_FEAT_DIM,) and dtype float32.
+
+    Raises:
+        ValueError: If the atom's hybridisation is not listed in
+            HYBRD.
+        IndexError: If the atom carries more than four hydrogens.
 
     Example:
         >>> mol = Chem.MolFromSmiles("CCO")
@@ -55,18 +61,12 @@ def atom_features(atom):
     radical_electrons = atom.GetNumRadicalElectrons()
 
     hybridization = [0.] * len(HYBRD)
-    try:
-        hybridization[HYBRD.index(atom.GetHybridization())] = 1.
-    except ValueError:
-        hybridization[HYBRD.index("other")] = 1.
+    hybridization[HYBRD.index(atom.GetHybridization())] = 1.
 
     aromaticity = 1. if atom.GetIsAromatic() else 0.
 
     hydrogens = [0.] * 5
-    try:
-        hydrogens[atom.GetTotalNumHs()] = 1.
-    except IndexError:
-        hydrogens[4] = 1.
+    hydrogens[atom.GetTotalNumHs()] = 1.
 
     chirality = 1. if atom.HasProp("_ChiralityPossible") else 0.
     chirality_type = [0.] * 2
