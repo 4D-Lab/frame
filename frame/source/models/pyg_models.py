@@ -73,15 +73,13 @@ class GNN_GIN(torch.nn.Module):
         hidden_channels = config.get("hidden_channels", 64)
         num_layers = config.get("num_layers", 2)
         dropout = config.get("dropout_rate", 0.4)
-        norm = config.get("gin_norm", None)
 
         self.pool = _resolve_pool(config.get("pool", "mean"))
         self.model = GIN(in_channels=in_channels,
                          hidden_channels=hidden_channels,
                          num_layers=num_layers,
                          out_channels=1,
-                         dropout=dropout,
-                         norm=norm)
+                         dropout=dropout)
 
     def forward(self, x, edge_index, edge_attr, batch):
         x = self.model(x, edge_index, edge_attr=edge_attr)

@@ -12,8 +12,6 @@ from torch_geometric.data import InMemoryDataset
 from torch_geometric.data.storage import GlobalStorage
 from torch_geometric.data.data import DataEdgeAttr, DataTensorAttr
 
-from frame.source.datasets.features import STEREOS, atom_features
-
 random.seed(8)
 np.random.seed(8)
 torch.manual_seed(8)
@@ -21,6 +19,19 @@ lg = RDLogger.logger()
 lg.setLevel(RDLogger.CRITICAL)
 torch.serialization.add_safe_globals([DataEdgeAttr, DataTensorAttr,
                                       GlobalStorage, Data])
+
+HYBRD = [Chem.rdchem.HybridizationType.S,
+         Chem.rdchem.HybridizationType.SP,
+         Chem.rdchem.HybridizationType.SP2,
+         Chem.rdchem.HybridizationType.SP3,
+         Chem.rdchem.HybridizationType.SP3D,
+         Chem.rdchem.HybridizationType.SP3D2,
+         "other"]
+STEREOS = [Chem.rdchem.BondStereo.STEREONONE,
+           Chem.rdchem.BondStereo.STEREOANY,
+           Chem.rdchem.BondStereo.STEREOZ,
+           Chem.rdchem.BondStereo.STEREOE]
+SYMBOLS = ["C", "N", "O", "F", "P", "S", "Cl", "Br", "I", "R"]
 
 
 class MolecularDataset(InMemoryDataset):
@@ -87,7 +98,37 @@ class MolecularDataset(InMemoryDataset):
 def _gen_features(data):
     mol = Chem.MolFromSmiles(data.smiles)
 
-    xs = [atom_features(atom) for atom in mol.GetAtoms()]
+    xs = []
+    for atom in mol.GetAtoms():
+        symbol = [0.] * len(SYMBOLS)
+        try:
+            symbol[SYMBOLS.index(atom.GetSymbol())] = 1.
+        except ValueError:
+            symbol[SYMBOLS.index("R")] = 1.
+        degree = [0.] * 6
+        try:
+            degree[atom.GetDegree()] = 1.
+        except IndexError:
+            degree[5] = 1.
+        formal_charge = atom.GetFormalCharge()
+        radical_electrons = atom.GetNumRadicalElectrons()
+        hybridization = [0.] * len(HYBRD)
+        hybridization[HYBRD.index(
+            atom.GetHybridization())] = 1.
+        aromaticity = 1. if atom.GetIsAromatic() else 0.
+        hydrogens = [0.] * 5
+        hydrogens[atom.GetTotalNumHs()] = 1.
+        chirality = 1. if atom.HasProp("_ChiralityPossible") else 0.
+        chirality_type = [0.] * 2
+        if atom.HasProp("_CIPCode"):
+            chirality_type[["R", "S"].index(atom.GetProp("_CIPCode"))] = 1.
+
+        x = torch.tensor(symbol + degree + [formal_charge] +
+                         [radical_electrons] + hybridization +
+                         [aromaticity] + hydrogens + [chirality] +
+                         chirality_type)
+        xs.append(x)
+
     data.x = torch.stack(xs, dim=0)
 
     edge_indices = []

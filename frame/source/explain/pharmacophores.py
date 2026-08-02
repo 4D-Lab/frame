@@ -1,6 +1,5 @@
 from rdkit import Chem
 from rdkit.Chem import Descriptors
-from rdkit.Chem import rdMolDescriptors
 
 
 BACE_PATTERNS = (("transition_state_mimic",
@@ -12,10 +11,7 @@ BACE_PATTERNS = (("transition_state_mimic",
                  ("s2_aromatic_hydrophobic",
                   "c1ccc(cc1)[CX4,CX3]"),
                  ("s1_hydrophobic",
-                  "[CX4;H2,H3;!$(C~[!#6;!#1])]"
-                  "[CX4;H2,H3;!$(C~[!#6;!#1])]"
-                  "[CX4;H2,H3;!$(C~[!#6;!#1])]"
-                  "[CX4;H2,H3;!$(C~[!#6;!#1])]"))
+                  "[CX4;H2,H3][CX4;H2,H3][CX4;H2,H3][CX4;H2,H3]"))
 
 MPRO_PATTERNS = (("warhead",
                   "C#N"),
@@ -37,140 +33,8 @@ MPRO_PATTERNS = (("warhead",
 BBBP_TPSA_THRESHOLD = 30.0
 
 
-_PATTERNS = {"bace": BACE_PATTERNS, "mpro": MPRO_PATTERNS}
-
-# SMARTS are compiled once; matching runs per fragment per molecule.
-_QUERIES = {name: tuple((class_name, Chem.MolFromSmarts(smarts))
-                        for class_name, smarts in patterns
-                        if Chem.MolFromSmarts(smarts) is not None)
-            for name, patterns in _PATTERNS.items()}
-
-MATCH_MODES = ("strict", "anchored")
-
-
-def get_queries(name: str):
-    """Return the compiled (class_name, query) pairs for a registry.
-
-    Args:
-        name: "bace" or "mpro" (case-insensitive).
-
-    Returns:
-        Tuple of (class_name, rdkit.Chem.Mol) query pairs.
-
-    Raises:
-        ValueError: If the registry has no SMARTS definition. BBBP is
-            physicochemical; use :func:`classify_bbbp_fragment`.
-    """
-    key = name.lower()
-    if key not in _QUERIES:
-        raise ValueError(f"No SMARTS registry for {name!r}. "
-                         f"Choose from {list(_QUERIES)}.")
-    return _QUERIES[key]
-
-
-def pharmacophore_instances(mol, name: str):
-    """Find every pharmacophore occurrence in an intact molecule.
-
-    Args:
-        mol: RDKit molecule (the parent, not a fragment).
-        name: Registry name, "bace" or "mpro".
-
-    Returns:
-        List of (class_name, frozenset_of_atom_indices) pairs, one
-        per substructure match. A molecule may yield several matches of
-        the same class.
-
-    Raises:
-        ValueError: If the registry has no SMARTS definition.
-    """
-    found = []
-    for class_name, query in get_queries(name):
-        for match in mol.GetSubstructMatches(query):
-            found.append((class_name, frozenset(match)))
-    return found
-
-
-def classify_fragment(mol, atoms, name: str, mode: str = "strict"):
-    """Classify one fragment using parent-molecule SMARTS matches.
-
-    The fragment is described by its atom indices in mol, so every
-    atom keeps the hydrogen count, aromaticity and substitution it has
-    in the real molecule.
-
-    Args:
-        mol: Parent RDKit molecule.
-        atoms: Atom indices belonging to the fragment.
-        name: Registry name, "bace" or "mpro".
-        mode: "strict" requires every atom of a match to lie inside
-            the fragment. "anchored" also accepts a match whose
-            majority of atoms lie inside, which tolerates motifs that
-            straddle a cut. Defaults to "strict".
-
-    Returns:
-        Set of class names carried by the fragment; empty if none.
-
-    Raises:
-        ValueError: If mode is not a member of MATCH_MODES.
-
-    Example:
-        >>> mol = Chem.MolFromSmiles("O=C1NCCC1CO")
-        >>> sorted(classify_fragment(mol, range(6), "mpro"))
-        ['s1_lactam_pyridone']
-    """
-    if mode not in MATCH_MODES:
-        raise ValueError(f"mode must be one of {list(MATCH_MODES)}, "
-                         f"got {mode!r}")
-    inside = set(atoms)
-    found = set()
-    for class_name, match in pharmacophore_instances(mol, name):
-        covered = len(match & inside)
-        if covered == len(match):
-            found.add(class_name)
-        elif mode == "anchored" and covered * 2 > len(match):
-            found.add(class_name)
-    return found
-
-
-def fragment_tpsa(mol, atoms):
-    """Sum the parent molecule's per-atom TPSA over a fragment.
-
-    Using RDKit's per-atom contributions keeps the value consistent
-    with the intact molecule; recomputing TPSA from a cut fragment's
-    SMILES would count hydrogens the atoms do not really carry.
-
-    Args:
-        mol: Parent RDKit molecule.
-        atoms: Atom indices belonging to the fragment.
-
-    Returns:
-        TPSA contribution of the fragment in Angstrom^2.
-    """
-    contribs = rdMolDescriptors._CalcTPSAContribs(mol)
-    return float(sum(contribs[a] for a in atoms))
-
-
-def classify_bbbp_fragment(mol, atoms,
-                           threshold: float = BBBP_TPSA_THRESHOLD):
-    """Classify a fragment by its share of the parent molecule's TPSA.
-
-    Args:
-        mol: Parent RDKit molecule.
-        atoms: Atom indices belonging to the fragment.
-        threshold: TPSA cutoff in Angstrom^2. Defaults to 30.0.
-
-    Returns:
-        "low_tpsa" or "high_tpsa".
-    """
-    if fragment_tpsa(mol, atoms) < threshold:
-        return "low_tpsa"
-    return "high_tpsa"
-
-
 def _classify_by_smarts(fragment_smiles: str, patterns: tuple):
     """Return the first SMARTS class name matching the fragment.
-
-    Deprecated: matches the fragment in isolation, which misreads
-    hydrogen counts. Use :func:`classify_fragment`.
 
     Args:
         fragment_smiles: Canonical SMILES of a single BRICS fragment.

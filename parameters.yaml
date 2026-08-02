@@ -11,7 +11,6 @@ Data:
   batch_size: 128                      # graphs per mini-batch
   patience: 15                         # early-stopping patience (epochs)
   loader: default                      # default | decompose
-  normalize_features: true             # max-abs scale node feats (train split)
   grad_clip_norm: 1.0                  # max grad-norm (0/None disables)
   drop_edge_p: 0.0                     # train-time edge drop probability
   mask_feat_p: 0.0                     # train-time node feature mask probability
@@ -39,9 +38,6 @@ Tune:
     # value: mean
   gcn_improved:                        # GCN self-loop weighting (A + 2I)
     value: true
-  gin_norm:                            # GIN norm: batch | layer | graph | pair
-    choices: [batch, layer, graph, pair]
-    # value: batch
   heads:                               # GAT attention heads
     min: 1
     max: 4
