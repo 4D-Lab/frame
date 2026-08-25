@@ -30,6 +30,32 @@ MPRO_PATTERNS = (("warhead",
                  ("s2_hydrophobic",
                   "[CX4;H1,H0]([CX4;H3])([CX4;H3])[CX4;H3]"))
 
+PTR1_PATTERNS = (("pterin_head",
+                  "Nc1nc(N)c2nccnc2n1"),
+                 ("pterin_head",
+                  "Nc1nc(N)c2ccccc2n1"),
+                 ("pterin_head",
+                  "Nc1nc(N)ncc1"),
+                 ("pterin_head",
+                  "Nc1[nH]c(=O)c2nccnc2n1"),
+                 ("stacking_aromatic",
+                  "c1ccc2ccccc2c1"),
+                 ("stacking_aromatic",
+                  "c1ccc2[nX2,nX3]cnc2c1"),
+                 ("stacking_aromatic",
+                  "c1cnc2nccnc2c1"),
+                 ("stacking_aromatic",
+                  "O=c1cc(-c2ccccc2)oc2ccccc12"),
+                 ("acidic_tail",
+                  "[CX3](=O)[OX2H1,OX1-]"),
+                 ("hydrophobic_tail",
+                  "[CX4;H1,H0]([CX4;H3])([CX4;H3])"))
+
+PTR1_PATTERNS_BROAD = (PTR1_PATTERNS[:4]
+                       + (("stacking_aromatic", "a1aaaa1"),
+                          ("stacking_aromatic", "a1aaaaa1"))
+                       + PTR1_PATTERNS[8:])
+
 BBBP_TPSA_THRESHOLD = 30.0
 
 
@@ -92,6 +118,29 @@ def classify_mpro(fragment_smiles: str):
     return _classify_by_smarts(fragment_smiles, MPRO_PATTERNS)
 
 
+def classify_ptr1(fragment_smiles: str,
+                  patterns: tuple = PTR1_PATTERNS):
+    """Classify a fragment against TbPTR1 inhibitor pharmacophores.
+
+    Classes (in priority order): pterin_head (2,4-diaminopteridine,
+    -quinazoline or -pyrimidine mimicking the pterin substrate and
+    hydrogen bonding Ser95/Tyr174), stacking_aromatic (fused
+    electron-rich ring occupying the pi-sandwich between the NADPH
+    nicotinamide and Phe97), acidic_tail (glutamate-like carboxylate),
+    hydrophobic_tail (branched alkyl).
+
+    Args:
+        fragment_smiles: Canonical SMILES of one BRICS fragment.
+        patterns: Registry to match against. Defaults to the narrow
+            ``PTR1_PATTERNS``; pass ``PTR1_PATTERNS_BROAD`` to run the
+            registry-sensitivity variant.
+
+    Returns:
+        Class name string or None.
+    """
+    return _classify_by_smarts(fragment_smiles, patterns)
+
+
 def classify_bbbp(fragment_smiles: str,
                   threshold: float = BBBP_TPSA_THRESHOLD):
     """Classify a fragment by topological polar surface area.
@@ -122,6 +171,7 @@ def classify_bbbp(fragment_smiles: str,
 
 CLASSIFIERS = {"bace": classify_bace,
                "mpro": classify_mpro,
+               "ptr1": classify_ptr1,
                "bbbp": classify_bbbp}
 
 CLASS_NAMES = {"bace": ("transition_state_mimic",
@@ -131,6 +181,10 @@ CLASS_NAMES = {"bace": ("transition_state_mimic",
                "mpro": ("warhead",
                         "s1_lactam_pyridone",
                         "s2_hydrophobic"),
+               "ptr1": ("pterin_head",
+                        "stacking_aromatic",
+                        "acidic_tail",
+                        "hydrophobic_tail"),
                "bbbp": ("low_tpsa",
                         "high_tpsa")}
 
@@ -139,7 +193,8 @@ def get_classifier(name: str):
     """Return the classify function for a case study by name.
 
     Args:
-        name: One of "bace", "mpro", "bbbp" (case-insensitive).
+        name: One of "bace", "mpro", "ptr1", "bbbp"
+            (case-insensitive).
 
     Returns:
         Callable fragment_smiles -> Optional[str].
@@ -158,7 +213,8 @@ def get_class_names(name: str):
     """Return the tuple of class names for a case study.
 
     Args:
-        name: One of "bace", "mpro", "bbbp" (case-insensitive).
+        name: One of "bace", "mpro", "ptr1", "bbbp"
+            (case-insensitive).
 
     Returns:
         Tuple of class-name strings.
